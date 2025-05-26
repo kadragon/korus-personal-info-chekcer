@@ -1,12 +1,12 @@
 """
-This module performs checks on user login history data.
-It identifies suspicious login patterns such as:
-- Logins from multiple IP addresses within a short time window.
-- Logins during off-hours.
-- Logins on holidays and weekends.
+이 모듈은 사용자 로그인 기록 데이터에 대한 검사를 수행합니다.
+다음과 같은 의심스러운 로그인 패턴을 식별합니다:
+- 짧은 시간 내 여러 IP 주소에서의 로그인.
+- 업무 시간 외 로그인.
+- 공휴일 및 주말 로그인.
 
-The main function `login_checker` orchestrates these checks and saves the results
-into separate Excel files.
+메인 함수 `login_checker`는 이러한 검사를 조정하고 결과를
+별도의 Excel 파일에 저장합니다.
 """
 
 import os
@@ -16,53 +16,49 @@ import holidays
 from utils import save_excel_with_autofit, find_and_prepare_excel_file
 
 # Constants for login_checker.py
-LOGIN_LOG_FILE_PREFIX = (
-    "사용자접속내역_Login내역_"  # Prefix for user login history files
+LOGIN_LOG_FILE_PREFIX = "사용자접속내역_Login내역_"  # 사용자 로그인 기록 파일의 접두사
+LOGIN_CHECK_REPORT_BASE = "[붙임2] 코러스 개인정보처리시스템 접속기록 점검 대장"  # 로그인 점검 보고서의 기본 이름
+LOGIN_REPORT_IP_SWITCH_SUFFIX = "60분IP"  # 보고서 접미사: LOGIN_IP_SWITCH_WINDOW_HOURS 내에 여러 IP에서 로그인하는 사용자
+LOGIN_REPORT_OFF_HOURS_SUFFIX = "업무시간외"  # 보고서 접미사: 표준 근무 시간 외 로그인
+LOGIN_REPORT_HOLIDAY_SUFFIX = "휴일"  # 보고서 접미사: 공휴일 또는 주말 로그인
+COL_IP = "IP"  # IP 주소
+COL_ACCESS_TIME = "접근일시"  # 접근 타임스탬프 (예: "YYYY-MM-DD HH:MM:SS")
+COL_EMPLOYEE_ID_LOGIN = "신분번호"  # 직원 ID, 특히 로그인 기록 파일에서 발견됨.
+LOGIN_IP_SWITCH_WINDOW_HOURS = 1  # login_checker용: 동일 사용자에 대해 여러 IP에서의 로그인을 감지하기 위한 시간 창(시간 단위).
+LOGIN_IP_SWITCH_MIN_IPS = (
+    3  # login_checker용: IP 변경 알림을 트리거하기 위한 창 내 최소 고유 IP 수.
 )
-LOGIN_CHECK_REPORT_BASE = "[붙임2] 코러스 개인정보처리시스템 접속기록 점검 대장"  # Base name for the login check report
-LOGIN_REPORT_IP_SWITCH_SUFFIX = "60분IP"  # Suffix for report: users logging in from multiple IPs within LOGIN_IP_SWITCH_WINDOW_HOURS
-LOGIN_REPORT_OFF_HOURS_SUFFIX = (
-    "업무시간외"  # Suffix for report: logins outside standard working hours
-)
-LOGIN_REPORT_HOLIDAY_SUFFIX = (
-    "휴일"  # Suffix for report: logins on holidays or weekends
-)
-COL_IP = "IP"  # IP Address
-COL_ACCESS_TIME = "접근일시"  # Access Timestamp (e.g., "YYYY-MM-DD HH:MM:SS")
-COL_EMPLOYEE_ID_LOGIN = (
-    "신분번호"  # Employee ID, specifically found in login history files.
-)
-LOGIN_IP_SWITCH_WINDOW_HOURS = 1  # For login_checker: time window in hours to detect logins from multiple IPs for the same user.
-LOGIN_IP_SWITCH_MIN_IPS = 3  # For login_checker: minimum number of unique IPs within the window to trigger an IP switch alert.
 LOGIN_OFF_HOURS_START = (
-    23  # Start hour (inclusive, 24-hour format) for login off-hours (e.g., 11 PM)
+    23  # 로그인 업무 시간 외 시작 시간(포함, 24시간 형식) (예: 오후 11시)
 )
-LOGIN_OFF_HOURS_END = 7  # End hour (exclusive, 24-hour format) for login off-hours (e.g., activity before 7 AM)
+LOGIN_OFF_HOURS_END = (
+    7  # 로그인 업무 시간 외 종료 시간(미포함, 24시간 형식) (예: 오전 7시 이전 활동)
+)
 
 
 def login_checker(download_dir: str, save_dir: str, prev_month: str):
     """
-    Main function to perform various checks on login history data.
+    로그인 기록 데이터에 대한 다양한 검사를 수행하는 메인 함수입니다.
 
-    It reads the login history Excel file, then applies filters for:
-    1. IP address switching: Users logging in from multiple IPs within a defined time window.
-    2. Off-hours access: Logins occurring outside of standard business hours.
-    3. Holiday/weekend access: Logins occurring on official holidays or weekends.
+    로그인 기록 Excel 파일을 읽은 후 다음 필터를 적용합니다:
+    1. IP 주소 변경: 정의된 시간 내에 여러 IP에서 로그인하는 사용자.
+    2. 업무 시간 외 접근: 표준 업무 시간 외에 발생한 로그인.
+    3. 공휴일/주말 접근: 공휴일 또는 주말에 발생한 로그인.
 
-    Each set of filtered results is saved to a separate Excel file.
+    필터링된 각 결과 집합은 별도의 Excel 파일에 저장됩니다.
 
-    Args:
-        download_dir (str): The directory where the source login history Excel file is located.
-        save_dir (str): The directory where the generated report Excel files will be saved.
-        prev_month (str): The previous month in 'YYYYMM' format, used for naming output files
-                          and potentially for selecting the correct input file if not handled by `find_and_prepare_excel_file`.
+    매개변수:
+        download_dir (str): 원본 로그인 기록 Excel 파일이 있는 디렉토리입니다.
+        save_dir (str): 생성된 보고서 Excel 파일이 저장될 디렉토리입니다.
+        prev_month (str): 'YYYYMM' 형식의 이전 달로, 출력 파일 이름 지정 및
+                          `find_and_prepare_excel_file`에서 처리하지 않은 경우 올바른 입력 파일을 선택하는 데 사용될 수 있습니다.
 
-    Raises:
-        FileNotFoundError: If the specified login history Excel file cannot be found.
-        ValueError: If the expected 'IP' column is not found at the 10th position (index 9).
+    예외:
+        FileNotFoundError: 지정된 로그인 기록 Excel 파일을 찾을 수 없는 경우.
+        ValueError: 예상되는 'IP' 열이 10번째 위치(인덱스 9)에 없는 경우.
     """
-    # Use the utility function to find, copy, and read the login history Excel file.
-    # The copied file is saved with a standardized name in the save_dir.
+    # 유틸리티 함수를 사용하여 로그인 기록 Excel 파일을 찾고, 복사하고, 읽습니다.
+    # 복사된 파일은 save_dir에 표준화된 이름으로 저장됩니다.
     df, _ = find_and_prepare_excel_file(
         download_dir,
         LOGIN_LOG_FILE_PREFIX,
@@ -72,22 +68,22 @@ def login_checker(download_dir: str, save_dir: str, prev_month: str):
     )
 
     if df is None:
-        # find_and_prepare_excel_file already prints a warning if no file is found.
-        # This error is raised to stop execution if the primary data source is missing.
+        # find_and_prepare_excel_file은 파일이 없는 경우 이미 경고를 출력합니다.
+        # 기본 데이터 소스가 누락된 경우 실행을 중지하기 위해 이 오류가 발생합니다.
         raise FileNotFoundError(
             f"Login history Excel file starting with '{LOGIN_LOG_FILE_PREFIX}' not found in '{download_dir}'."
         )
 
-    # Validate that the 10th column (index 9) is 'IP'. This is a sanity check based on expected file format.
-    # Original comment: "5. 컬럼명 확인" (Check column name)
+    # 10번째 열(인덱스 9)이 'IP'인지 확인합니다. 이는 예상 파일 형식에 기반한 온전성 검사입니다.
+    # 원본 주석: "5. 컬럼명 확인"
     expected_ip_col_index = 9
     if df.columns[expected_ip_col_index] != COL_IP:
         raise ValueError(
             f"Expected '{COL_IP}' column at index {expected_ip_col_index}. Found: {df.columns[expected_ip_col_index]}"
         )
 
-    # Filter for users logging in from multiple IPs within a short time.
-    # Original comment: "6. 60분 이내에 다른 IP 접속" (Logins from different IPs within 60 minutes)
+    # 짧은 시간 내에 여러 IP에서 로그인하는 사용자를 필터링합니다.
+    # 원본 주석: "6. 60분 이내에 다른 IP 접속"
     filtered_ip_switch = _filter_ip_switch(df)
     if not filtered_ip_switch.empty:
         save_path_ip_switch = os.path.join(
@@ -99,8 +95,8 @@ def login_checker(download_dir: str, save_dir: str, prev_month: str):
     else:
         print("No records found for IP switch check.")
 
-    # Filter for logins outside of standard business hours.
-    # Original comment: "7. 08:00~19:00 이외 접속" (Logins outside 08:00-19:00) - Note: Constants define this more precisely.
+    # 표준 업무 시간 외의 로그인을 필터링합니다.
+    # 원본 주석: "7. 08:00~19:00 이외 접속" - 참고: 상수가 이를 더 정확하게 정의합니다.
     filtered_off_hours = _filter_off_hours(df)
     if not filtered_off_hours.empty:
         save_path_off_hours = os.path.join(
@@ -112,8 +108,8 @@ def login_checker(download_dir: str, save_dir: str, prev_month: str):
     else:
         print("No records found for off-hours login check.")
 
-    # Filter for logins on holidays or weekends.
-    # Original comment: "8. 토, 일, 공휴일 접속" (Logins on Saturdays, Sundays, or public holidays)
+    # 공휴일 또는 주말 로그인을 필터링합니다.
+    # 원본 주석: "8. 토, 일, 공휴일 접속"
     filtered_holiday_weekend = _filter_holiday_and_weekend(df)
     if not filtered_holiday_weekend.empty:
         save_path_holiday_weekend = os.path.join(
@@ -128,19 +124,19 @@ def login_checker(download_dir: str, save_dir: str, prev_month: str):
 
 def _filter_ip_switch(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Filters for users who logged in from multiple distinct IP addresses within a defined time window.
+    정의된 시간 창 내에 여러 개의 고유 IP 주소에서 로그인한 사용자를 필터링합니다.
 
-    Args:
-        df (pd.DataFrame): DataFrame containing login records. Expected columns include
-                           `COL_ACCESS_TIME` (access timestamp) and `COL_IP` (IP address),
-                           and `COL_EMPLOYEE_ID_LOGIN` (employee identifier).
+    매개변수:
+        df (pd.DataFrame): 로그인 기록을 포함하는 DataFrame입니다. 예상되는 열에는
+                           `COL_ACCESS_TIME`(접근 타임스탬프) 및 `COL_IP`(IP 주소),
+                           그리고 `COL_EMPLOYEE_ID_LOGIN`(직원 식별자)이 포함됩니다.
 
-    Returns:
-        pd.DataFrame: A DataFrame containing records of users who triggered the IP switch alert,
-                      sorted by employee ID and access time. Returns an empty DataFrame if no such records are found.
+    반환 값:
+        pd.DataFrame: IP 변경 알림을 트리거한 사용자 기록을 포함하는 DataFrame으로,
+                      직원 ID와 접근 시간으로 정렬됩니다. 해당 기록이 없으면 빈 DataFrame을 반환합니다.
 
-    Raises:
-        ValueError: If the input DataFrame `df` is None.
+    예외:
+        ValueError: 입력 DataFrame `df`가 None인 경우.
     """
     if df is None:
         raise ValueError("Input DataFrame cannot be None.")
@@ -150,31 +146,31 @@ def _filter_ip_switch(df: pd.DataFrame) -> pd.DataFrame:
 
     flagged_indices = (
         set()
-    )  # Using a set to store indices of flagged rows to avoid duplicates.
+    )  # 중복을 피하기 위해 플래그가 지정된 행의 인덱스를 저장하는 데 세트를 사용합니다.
 
-    # Group by employee ID to analyze each user's login patterns.
+    # 직원 ID별로 그룹화하여 각 사용자의 로그인 패턴을 분석합니다.
     for _, group in df_copy.groupby(COL_EMPLOYEE_ID_LOGIN):
         group = group.sort_values(COL_ACCESS_TIME)
 
-        # Iterate through each login event for the user.
+        # 사용자의 각 로그인 이벤트를 반복합니다.
         for i in range(len(group)):
             current_login_time = group.iloc[i][COL_ACCESS_TIME]
-            # Define the time window for checking subsequent logins.
+            # 후속 로그인을 확인하기 위한 시간 창을 정의합니다.
             window_end_time = current_login_time + pd.Timedelta(
                 hours=LOGIN_IP_SWITCH_WINDOW_HOURS
             )
 
-            # Select logins within this window.
+            # 이 창 내의 로그인을 선택합니다.
             logins_in_window = group[
                 (group[COL_ACCESS_TIME] >= current_login_time)
                 & (group[COL_ACCESS_TIME] <= window_end_time)
             ]
 
-            # Check if the number of unique IPs in this window meets the threshold.
+            # 이 창 내의 고유 IP 수가 임계값을 충족하는지 확인합니다.
             if len(set(logins_in_window[COL_IP])) >= LOGIN_IP_SWITCH_MIN_IPS:
                 flagged_indices.update(
                     logins_in_window.index
-                )  # Add all records in this window
+                )  # 이 창의 모든 기록을 추가합니다.
 
     if flagged_indices:
         result_df = df_copy.loc[sorted(list(flagged_indices))]
@@ -182,24 +178,24 @@ def _filter_ip_switch(df: pd.DataFrame) -> pd.DataFrame:
     else:
         return pd.DataFrame(
             columns=df.columns
-        )  # Return empty DataFrame with same columns if no matches
+        )  # 일치하는 항목이 없으면 동일한 열을 가진 빈 DataFrame을 반환합니다.
 
 
 def _filter_off_hours(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Filters login records that occurred outside of standard business hours.
-    Off-hours are defined by `LOGIN_OFF_HOURS_START` and `LOGIN_OFF_HOURS_END`.
+    표준 업무 시간 외에 발생한 로그인 기록을 필터링합니다.
+    업무 시간 외는 `LOGIN_OFF_HOURS_START` 및 `LOGIN_OFF_HOURS_END`로 정의됩니다.
 
-    Args:
-        df (pd.DataFrame): DataFrame containing login records. Expected columns:
-                           `COL_ACCESS_TIME` and `COL_EMPLOYEE_ID_LOGIN`.
+    매개변수:
+        df (pd.DataFrame): 로그인 기록을 포함하는 DataFrame입니다. 예상 열:
+                           `COL_ACCESS_TIME` 및 `COL_EMPLOYEE_ID_LOGIN`.
 
-    Returns:
-        pd.DataFrame: A DataFrame containing login records that occurred during off-hours,
-                      sorted by employee ID and access time.
+    반환 값:
+        pd.DataFrame: 업무 시간 외에 발생한 로그인 기록을 포함하며,
+                      직원 ID와 접근 시간으로 정렬된 DataFrame입니다.
 
-    Raises:
-        ValueError: If the input DataFrame `df` is None.
+    예외:
+        ValueError: 입력 DataFrame `df`가 None인 경우.
     """
     if df is None:
         raise ValueError("Input DataFrame cannot be None.")
@@ -207,29 +203,29 @@ def _filter_off_hours(df: pd.DataFrame) -> pd.DataFrame:
     df_copy = df.copy()
     df_copy[COL_ACCESS_TIME] = pd.to_datetime(df_copy[COL_ACCESS_TIME])
 
-    # Extract the hour from the access time.
+    # 접근 시간에서 시간을 추출합니다.
     hours = df_copy[COL_ACCESS_TIME].dt.hour
 
-    # Create a mask for records that are before the end of off-hours in the morning
-    # OR at or after the start of off-hours in the evening.
+    # 오전 업무 시간 외 종료 이전의 기록에 대한 마스크를 생성합니다.
+    # 또는 저녁 업무 시간 외 시작 이후의 기록에 대한 마스크를 생성합니다.
     mask = (hours < LOGIN_OFF_HOURS_END) | (hours >= LOGIN_OFF_HOURS_START)
     return df_copy[mask].sort_values([COL_EMPLOYEE_ID_LOGIN, COL_ACCESS_TIME])
 
 
 def _filter_holiday_and_weekend(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Filters login records that occurred on South Korean public holidays or weekends (Saturday, Sunday).
+    대한민국 공휴일 또는 주말(토요일, 일요일)에 발생한 로그인 기록을 필터링합니다.
 
-    Args:
-        df (pd.DataFrame): DataFrame containing login records. Expected columns:
-                           `COL_ACCESS_TIME` and `COL_EMPLOYEE_ID_LOGIN`.
+    매개변수:
+        df (pd.DataFrame): 로그인 기록을 포함하는 DataFrame입니다. 예상 열:
+                           `COL_ACCESS_TIME` 및 `COL_EMPLOYEE_ID_LOGIN`.
 
-    Returns:
-        pd.DataFrame: A DataFrame containing login records that occurred on holidays or weekends,
-                      sorted by employee ID and access time.
+    반환 값:
+        pd.DataFrame: 공휴일 또는 주말에 발생한 로그인 기록을 포함하며,
+                      직원 ID와 접근 시간으로 정렬된 DataFrame입니다.
 
-    Raises:
-        ValueError: If the input DataFrame `df` is None.
+    예외:
+        ValueError: 입력 DataFrame `df`가 None인 경우.
     """
     if df is None:
         raise ValueError("Input DataFrame cannot be None.")
@@ -237,14 +233,14 @@ def _filter_holiday_and_weekend(df: pd.DataFrame) -> pd.DataFrame:
     df_copy = df.copy()
     df_copy[COL_ACCESS_TIME] = pd.to_datetime(df_copy[COL_ACCESS_TIME])
 
-    # Get unique years from the access times to initialize the holidays object correctly.
+    # 접근 시간에서 고유한 연도를 가져와 holidays 객체를 올바르게 초기화합니다.
     years = df_copy[COL_ACCESS_TIME].dt.year.unique()
-    # Initialize South Korean holidays for the relevant years.
-    kr_holidays = holidays.KR(years=years)  # type: ignore # holidays.KR is valid
+    # 해당 연도에 대한 대한민국 공휴일을 초기화합니다.
+    kr_holidays = holidays.KR(years=years)  # type: ignore # holidays.KR은 유효합니다.
 
-    # Check if the login date is a weekend (Saturday=5, Sunday=6).
+    # 로그인 날짜가 주말인지 확인합니다 (토요일=5, 일요일=6).
     is_weekend = df_copy[COL_ACCESS_TIME].dt.weekday >= 5
-    # Check if the login date is a public holiday.
+    # 로그인 날짜가 공휴일인지 확인합니다.
     is_holiday = df_copy[COL_ACCESS_TIME].dt.date.isin(kr_holidays)
 
     mask = is_weekend | is_holiday
