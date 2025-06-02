@@ -11,13 +11,16 @@
 """
 
 import os
+from datetime import datetime
+
 import pandas as pd
-from utils import save_excel_with_autofit
+from utils import save_excel_with_autofit, find_and_prepare_excel_file
 
 # personal_file_checker.py 상수
 PERSONAL_INFO_ACCESS_LOG_PREFIX = (
     "개인정보 접속기록 조회_"  # 개인 정보 접근 로그 파일의 접두사
 )
+PERSONAL_INFO_REPORT_BASE = "[붙임3] 개인정보 접속기록 조회"
 MERGED_PERSONAL_INFO_ACCESS_FILENAME_TEMPLATE = "[붙임3] 개인정보 접속기록 조회_{}.xlsx"
 PERSONAL_INFO_ACCESS_MASTER_SUFFIX = (
     "인사마스터"  # 보고서 접미사: '인사마스터'(HR 마스터) 프로그램 접근
@@ -28,7 +31,7 @@ PERSONAL_INFO_ACCESS_HIGH_VOLUME_VIEWS_SUFFIX = (
 PERSONAL_INFO_ACCESS_HIGH_VOLUME_SAVES_SUFFIX = (
     "100건이상저장"  # 보고서 접미사: SAVE_THRESHOLD보다 많은 기록을 저장한 사용자
 )
-COL_ACCESS_TIME = "접근일시"  # 접근 타임스탬프 (예: "YYYY-MM-DD HH:MM:SS")
+COL_ACCESS_TIME = "접속일시"  # 접근 타임스탬프 (예: "YYYY-MM-DD HH:MM:SS")
 COL_EMPLOYEE_ID = (
     "교번"  # 직원 ID. 주로 다운로드 사유 및 개인 파일 접근 로그에 사용됩니다.
 )
@@ -78,52 +81,28 @@ def personal_file_checker(download_dir: str, save_dir: str, prev_month: str):
         # download_dir이 항상 사용 가능하다면 직접 인수로 만드는 것을 고려하십시오.
         raise EnvironmentError("DOWNLOAD_DIR environment variable is not set.")
 
-    # 접두사 및 확장자와 일치하는 모든 Excel 파일을 찾습니다.
-    files = [
-        f
-        for f in os.listdir(download_dir)
-        if f.startswith(PERSONAL_INFO_ACCESS_LOG_PREFIX)
-        and f.lower().endswith(EXCEL_EXTENSIONS)
-    ]
+    PERSONAL_INFO_ACCESS_LOG_PREFIX_FILE_PREFIX = PERSONAL_INFO_ACCESS_LOG_PREFIX + \
+        datetime.today().strftime("%Y%m")
 
-    if not files:
-        raise FileNotFoundError(
-            f"No Excel files starting with '{PERSONAL_INFO_ACCESS_LOG_PREFIX}' found in '{download_dir}'."
-        )
-
-    # 찾은 모든 Excel 파일을 읽고 연결합니다.
-    dfs = []
-    for filename in files:
-        file_path = os.path.join(download_dir, filename)
-        try:
-            df_temp = pd.read_excel(file_path)
-            dfs.append(df_temp)
-            print(f"Successfully read: {filename}")
-        except Exception as e:
-            print(f"Failed to read file: {filename} - {e}")
-
-    if not dfs:
-        raise ValueError(
-            "No valid Excel files could be merged. Please check file contents and format."
-        )
-
-    merged_df = pd.concat(dfs, ignore_index=True)
-    print(
-        f"Successfully merged {len(dfs)} files into a single DataFrame with {len(merged_df)} records."
+    df, _ = find_and_prepare_excel_file(
+        download_dir,
+        PERSONAL_INFO_ACCESS_LOG_PREFIX_FILE_PREFIX,
+        save_dir,
+        PERSONAL_INFO_REPORT_BASE,
+        prev_month,
     )
 
-    # 원본 스크립트에는 초기에 병합된 파일을 저장하기 위한 주석 처리된 섹션이 있었습니다.
-    # 이는 디버깅 또는 중간 확인에 유용할 수 있습니다.
-    # merged_filename = MERGED_PERSONAL_INFO_ACCESS_FILENAME_TEMPLATE.format(prev_month)
-    # merged_save_path = os.path.join(save_dir, merged_filename)
-    # save_excel_with_autofit(merged_df, merged_save_path)
-    # print(f"Merged personal information access log saved to: {merged_save_path}")
+    if df is None:
+        raise FileNotFoundError(
+            f"Download reason Excel file starting with '{PERSONAL_INFO_ACCESS_LOG_PREFIX_FILE_PREFIX}' not found in '{download_dir}'."
+        )
 
-    df_to_analyze = merged_df
+    df_to_analyze = df
 
     # 필터 1: '인사마스터'(HR 마스터) 접근, 본인 접근 제외.
     # 원본 주석: "인사마스터에서 조회한 기록 (본인 제외)"
-    filtered_master_access = _filter_by_job_master_exclude_detail_id(df_to_analyze)
+    filtered_master_access = _filter_by_job_master_exclude_detail_id(
+        df_to_analyze)
     if not filtered_master_access.empty:
         # MERGED_...TEMPLATE을 기반으로 파일 이름을 구성한 다음 특정 접미사를 추가합니다.
         base_report_name_for_master = (
@@ -136,7 +115,8 @@ def personal_file_checker(download_dir: str, save_dir: str, prev_month: str):
             f"{base_report_name_for_master}({PERSONAL_INFO_ACCESS_MASTER_SUFFIX}).xlsx",
         )
         save_excel_with_autofit(filtered_master_access, save_path_master)
-        print(f"HR Master access (excluding self) results saved to: {save_path_master}")
+        print(
+            f"HR Master access (excluding self) results saved to: {save_path_master}")
     else:
         print("No records found for HR Master access (excluding self) check.")
 
@@ -281,7 +261,8 @@ def _extract_and_save_by_job(
     # 특정 작업 유형과 일치하는 기록을 필터링합니다.
     job_specific_df = df[df[job_column_name] == job]
     # 직원 ID별로 그룹화하고 작업 발생 횟수를 계산합니다.
-    job_counts_per_user = job_specific_df.groupby(employee_id_col_to_use).size()
+    job_counts_per_user = job_specific_df.groupby(
+        employee_id_col_to_use).size()
     # 이 작업에 대한 임계값을 충족하거나 초과하는 사용자를 식별합니다.
     target_user_ids = job_counts_per_user[
         job_counts_per_user >= threshold
@@ -317,7 +298,8 @@ def _extract_and_save_by_job(
                 # 필요한 경우 잘라내고 고유성을 보장하지만 여기서는 단순 잘라내기를 사용합니다.
                 sheet_name = sheet_name[:SHEET_NAME_MAX_CHARS]
 
-            user_all_records_df.to_excel(writer, sheet_name=sheet_name, index=False)
+            user_all_records_df.to_excel(
+                writer, sheet_name=sheet_name, index=False)
             # 자동 맞춤 참고: 현재 `save_excel_with_autofit` 유틸리티는 DataFrame을 새 파일에 저장합니다.
             # 그런 다음 자동 맞춤합니다. ExcelWriter 컨텍스트 내의 시트에 직접 적용하려면
             # 유틸리티를 수정하거나 저장된 다중 시트 파일을 후처리해야 합니다.

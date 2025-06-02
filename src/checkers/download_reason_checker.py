@@ -11,6 +11,7 @@
 """
 
 import os
+from datetime import datetime
 import pandas as pd
 import holidays
 
@@ -23,7 +24,7 @@ DOWNLOAD_REASON_INVALID_REASON_SUFFIX = "사유이상"
 DOWNLOAD_REASON_HIGH_DOWNLOAD_COUNT_SUFFIX = "100건 초과"
 DOWNLOAD_REASON_HIGH_FREQUENCY_SUFFIX = "1시간20건초과"
 DOWNLOAD_REASON_OFF_HOURS_SUFFIX = "업무시간외"
-COL_ACCESS_TIME = "접근일시"
+COL_ACCESS_TIME = "접속일시"
 COL_EMPLOYEE_ID = "교번"
 COL_DOWNLOAD_REASON = "다운로드사유"
 COL_DOWNLOAD_COUNT = "다운로드데이터수(건)"
@@ -71,9 +72,12 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str):
         FileNotFoundError: 다운로드 사유 Excel 파일을 찾을 수 없는 경우.
     """
     # 다운로드 사유 Excel 파일을 찾아 복사하고 읽어들입니다.
+    PERSONAL_INFO_DOWNLOAD_REASON_FilE_PREFIX = PERSONAL_INFO_DOWNLOAD_REASON_PREFIX + \
+        datetime.today().strftime("%Y%m")
+
     df, _ = find_and_prepare_excel_file(
         download_dir,
-        PERSONAL_INFO_DOWNLOAD_REASON_PREFIX,
+        PERSONAL_INFO_DOWNLOAD_REASON_FilE_PREFIX,
         save_dir,
         DOWNLOAD_REASON_REPORT_BASE,
         prev_month,
@@ -81,7 +85,7 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str):
 
     if df is None:
         raise FileNotFoundError(
-            f"Download reason Excel file starting with '{PERSONAL_INFO_DOWNLOAD_REASON_PREFIX}' not found in '{download_dir}'."
+            f"Download reason Excel file starting with '{PERSONAL_INFO_DOWNLOAD_REASON_FilE_PREFIX}' not found in '{download_dir}'."
         )
 
     # 의심스럽거나 짧은 사유의 다운로드를 필터링합니다.
@@ -92,7 +96,8 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str):
             save_dir,
             f"{DOWNLOAD_REASON_REPORT_BASE}({DOWNLOAD_REASON_INVALID_REASON_SUFFIX})_{prev_month}.xlsx",
         )
-        save_excel_with_autofit(filtered_invalid_reason, save_path_invalid_reason)
+        save_excel_with_autofit(filtered_invalid_reason,
+                                save_path_invalid_reason)
         print(
             f"Results for invalid download reasons saved to: {save_path_invalid_reason}"
         )
@@ -107,7 +112,8 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str):
             save_dir,
             f"{DOWNLOAD_REASON_REPORT_BASE}({DOWNLOAD_REASON_HIGH_DOWNLOAD_COUNT_SUFFIX})_{prev_month}.xlsx",
         )
-        save_excel_with_autofit(filtered_high_download, save_path_high_download)
+        save_excel_with_autofit(filtered_high_download,
+                                save_path_high_download)
         print(
             f"Results for high download count (>{DOWNLOAD_COUNT_THRESHOLD}) saved to: {save_path_high_download}"
         )
@@ -141,7 +147,8 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str):
             save_dir,
             f"{DOWNLOAD_REASON_REPORT_BASE}({DOWNLOAD_REASON_OFF_HOURS_SUFFIX})_{prev_month}.xlsx",
         )
-        save_excel_with_autofit(filtered_off_hours_holiday, save_path_off_hours_holiday)
+        save_excel_with_autofit(
+            filtered_off_hours_holiday, save_path_off_hours_holiday)
         print(
             f"Results for off-hours/holiday downloads saved to: {save_path_off_hours_holiday}"
         )
@@ -206,7 +213,8 @@ def _filter_high_download_users(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     # 직원 ID별로 그룹화하고 다운로드 수를 합산합니다.
-    download_sum_per_user = df.groupby(COL_EMPLOYEE_ID)[COL_DOWNLOAD_COUNT].sum()
+    download_sum_per_user = df.groupby(COL_EMPLOYEE_ID)[
+        COL_DOWNLOAD_COUNT].sum()
     # 다운로드 수 임계값을 충족하거나 초과하는 사용자를 식별합니다.
     target_users = download_sum_per_user[
         download_sum_per_user >= DOWNLOAD_COUNT_THRESHOLD
@@ -301,7 +309,8 @@ def _filter_off_hour_and_holiday(df: pd.DataFrame) -> pd.DataFrame:
 
     # 해당 연도에 대한 대한민국 공휴일을 초기화합니다.
     years = df_copy[COL_ACCESS_TIME].dt.year.unique()
-    kr_holidays = holidays.KR(years=years)  # type: ignore # holidays.KR은 유효합니다.
+    # type: ignore # holidays.KR은 유효합니다.
+    kr_holidays = holidays.KR(years=years)
 
     # 검사를 위한 시간적 특징을 추출합니다.
     weekday = df_copy[COL_ACCESS_TIME].dt.weekday
@@ -309,7 +318,8 @@ def _filter_off_hour_and_holiday(df: pd.DataFrame) -> pd.DataFrame:
     date_only = df_copy[COL_ACCESS_TIME].dt.date  # 공휴일 확인용
 
     # 업무 시간 외, 주말 및 공휴일 조건을 정의합니다.
-    is_off_hour = (hour < DOWNLOAD_OFF_HOURS_END) | (hour >= DOWNLOAD_OFF_HOURS_START)
+    is_off_hour = (hour < DOWNLOAD_OFF_HOURS_END) | (
+        hour >= DOWNLOAD_OFF_HOURS_START)
     is_weekend = weekday >= 5  # 월요일은 0이고 일요일은 6입니다; 토요일=5, 일요일=6.
     is_holiday = date_only.isin(kr_holidays)
 
