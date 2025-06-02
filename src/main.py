@@ -14,7 +14,7 @@
 import os
 from dotenv import load_dotenv
 
-from utils import get_prev_month_yyyymm, make_save_dir
+from utils import get_prev_month_yyyymm, make_save_dir, zip_files_by_prefix
 from checkers.download_reason_checker import sayu_checker
 from checkers.login_checker import login_checker
 from checkers.personal_file_checker import personal_file_checker
@@ -32,9 +32,6 @@ def main():
 
     분석 대상 월(지난달)을 결정하고, 필요한 저장 디렉토리 구조를 생성한 후,
     선택된 검사 함수들을 실행합니다.
-
-    현재 `personal_file_checker`가 활성화되어 있으며, `sayu_checker`와
-    `login_checker`는 주석 처리되어 있습니다. 실행에 포함하려면 주석을 해제하십시오.
     """
     if not base_save_dir:
         print(
@@ -67,7 +64,8 @@ def main():
         except FileNotFoundError as e:
             print(f"Error in Download Reason Checker: {e}")
         except Exception as e:
-            print(f"An unexpected error occurred in Download Reason Checker: {e}")
+            print(
+                f"An unexpected error occurred in Download Reason Checker: {e}")
 
         # 로그인 IP 패턴 확인 섹션입니다.
         # 원본 주석: "# 로그인 IP 검사"
@@ -84,20 +82,22 @@ def main():
         # 원본 주석: "# 개인정보 조회 기록 점검"
         print("\n### Running Personal File Checker ###")
         try:
-            personal_file_checker(download_dir, reports_save_dir, prev_month_str)
+            personal_file_checker(
+                download_dir, reports_save_dir, prev_month_str)
             print("Personal File Checker completed.")
         except FileNotFoundError as e:
             print(f"Error in Personal File Checker: {e}")
         except Exception as e:
-            print(f"An unexpected error occurred in Personal File Checker: {e}")
+            print(
+                f"An unexpected error occurred in Personal File Checker: {e}")
 
         print("\nAll checks finished.")
+
+        # zip_files_by_prefix
+        zip_files_by_prefix(reports_save_dir, ['[붙임2', '[붙임3', '[붙임4'])
     else:
-        # 이 경우는 초기에 base_save_dir 및 download_dir에 대한 확인에서 처리되어야 합니다.
         print("Error: Download directory or save directory is not properly configured.")
 
 
 if __name__ == "__main__":
-    # 스크립트가 직접 실행될 때만 main()이 호출되도록 합니다,
-    # 모듈로 가져올 때는 호출되지 않습니다.
     main()
