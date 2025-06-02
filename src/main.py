@@ -94,7 +94,10 @@ def main():
         print("\nAll checks finished.")
 
         # zip_files_by_prefix
-        zip_files_by_prefix(reports_save_dir, ['[붙임2', '[붙임3', '[붙임4'])
+        try:
+            zip_files_by_prefix(reports_save_dir, ['[붙임2', '[붙임3', '[붙임4'])
+        except Exception as e:
+            print(f"Error during zipping: {e}")
     else:
         print("Error: Download directory or save directory is not properly configured.")
 
