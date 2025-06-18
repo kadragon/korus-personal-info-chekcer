@@ -79,9 +79,8 @@ def save_excel_with_autofit(df: pd.DataFrame, path: str):
                     # 셀 값 문자열 표현의 길이를 계산합니다.
                     cell_value_str = str(cell.value)
                     max_length = max(max_length, len(cell_value_str))
-            except Exception:
-                # 셀 값을 처리할 수 없는 경우 건너뜁니다.
-                pass
+            except Exception as e:
+                print(f"[열 너비 자동 맞춤] {cell.coordinate}에서 예외 발생: {e}")
 
         # 내용이 없거나 매우 짧은 경우 기본 최소 너비를 설정합니다.
         adjusted_width = max_length + 2 if max_length > 0 else 10
