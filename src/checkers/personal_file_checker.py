@@ -81,8 +81,7 @@ def personal_file_checker(download_dir: str, save_dir: str, prev_month: str):
         # download_dir이 항상 사용 가능하다면 직접 인수로 만드는 것을 고려하십시오.
         raise EnvironmentError("DOWNLOAD_DIR environment variable is not set.")
 
-    PERSONAL_INFO_ACCESS_LOG_PREFIX_FILE_PREFIX = PERSONAL_INFO_ACCESS_LOG_PREFIX + \
-        datetime.today().strftime("%Y%m")
+    PERSONAL_INFO_ACCESS_LOG_PREFIX_FILE_PREFIX = f"{PERSONAL_INFO_ACCESS_LOG_PREFIX}{datetime.today().strftime('%Y%m')}"
 
     df, _ = find_and_prepare_excel_file(
         download_dir,

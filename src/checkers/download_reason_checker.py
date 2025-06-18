@@ -72,12 +72,11 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str):
         FileNotFoundError: 다운로드 사유 Excel 파일을 찾을 수 없는 경우.
     """
     # 다운로드 사유 Excel 파일을 찾아 복사하고 읽어들입니다.
-    PERSONAL_INFO_DOWNLOAD_REASON_FilE_PREFIX = PERSONAL_INFO_DOWNLOAD_REASON_PREFIX + \
-        datetime.today().strftime("%Y%m")
+    PERSONAL_INFO_DOWNLOAD_REASON_FILE_PREFIX = f"{PERSONAL_INFO_DOWNLOAD_REASON_PREFIX}{datetime.today().strftime('%Y%m')}"
 
     df, _ = find_and_prepare_excel_file(
         download_dir,
-        PERSONAL_INFO_DOWNLOAD_REASON_FilE_PREFIX,
+        PERSONAL_INFO_DOWNLOAD_REASON_FILE_PREFIX,
         save_dir,
         DOWNLOAD_REASON_REPORT_BASE,
         prev_month,
@@ -85,7 +84,7 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str):
 
     if df is None:
         raise FileNotFoundError(
-            f"Download reason Excel file starting with '{PERSONAL_INFO_DOWNLOAD_REASON_FilE_PREFIX}' not found in '{download_dir}'."
+            f"Download reason Excel file starting with '{PERSONAL_INFO_DOWNLOAD_REASON_FILE_PREFIX}' not found in '{download_dir}'."
         )
 
     # 의심스럽거나 짧은 사유의 다운로드를 필터링합니다.

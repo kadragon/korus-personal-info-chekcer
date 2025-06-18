@@ -61,8 +61,7 @@ def login_checker(download_dir: str, save_dir: str, prev_month: str):
         FileNotFoundError: 지정된 로그인 기록 Excel 파일을 찾을 수 없는 경우.
         ValueError: 예상되는 'IP' 열이 10번째 위치(인덱스 9)에 없는 경우.
     """
-    LOGIN_LOG_FILE_PREFIX_FILE_PREFIX = LOGIN_LOG_FILE_PREFIX + \
-        datetime.today().strftime("%Y%m")
+    LOGIN_LOG_FILE_PREFIX_FILE_PREFIX = f"{LOGIN_LOG_FILE_PREFIX}{datetime.today().strftime('%Y%m')}"
 
     # 유틸리티 함수를 사용하여 로그인 기록 Excel 파일을 찾고, 복사하고, 읽습니다.
     # 복사된 파일은 save_dir에 표준화된 이름으로 저장됩니다.
