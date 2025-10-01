@@ -13,6 +13,14 @@ import pandas as pd
 from dateutil.relativedelta import relativedelta
 from openpyxl.utils import get_column_letter
 
+from display import (
+    print_error,
+    print_info,
+    print_result,
+    print_zip_result,
+    print_zip_warning,
+)
+
 # Constants for utils.py
 EXCEL_EXTENSIONS = (
     ".xlsx",
@@ -47,10 +55,10 @@ def make_save_dir(base_save_dir: str) -> str:
     prev_month_str = get_prev_month_yyyymm()
     save_dir = os.path.join(base_save_dir, prev_month_str)
 
-    # 디렉토리가 존재하는지 확인하고, 없으면 생성합니다.
     if not os.path.exists(save_dir):
         os.makedirs(save_dir, exist_ok=True)
-        print(f"Created directory: {save_dir}")
+        # 이 함수는 메인 헤더가 인쇄되기 전에 호출되므로 간단한 인쇄가 더 좋습니다.
+        print(f"폴더 생성: {save_dir}")
 
     return save_dir
 
@@ -64,17 +72,14 @@ def save_excel_with_autofit(df: pd.DataFrame, path: str):
         path (str): Excel 파일이 저장될 전체 경로(파일 이름 포함)입니다.
     """
     df.to_excel(path, index=False)
-    # 워크북을 로드하고 활성 시트를 선택하여 열 너비를 조정합니다.
     wb = openpyxl.load_workbook(path)
-    ws = wb.active  # 활성 워크시트를 가져옵니다.
+    ws = wb.active
 
     if ws is None:
         wb.close()
-        print("Warning: No active worksheet found. Cannot autofit columns.")
+        print_error("활성 워크시트를 찾을 수 없어 열 너비를 자동 맞춤할 수 없습니다.")
         return
 
-    # 자동 맞춤을 위한 최대 길이를 계산하기 위해 열을 반복합니다.
-    # type: ignore # openpyxl.worksheet.worksheet.Worksheet.columns는 제너레이터입니다.
     for idx, column_cells in enumerate(ws.columns):  # type: ignore
         max_length = 0
         column_letter = get_column_letter(idx + 1)
@@ -82,16 +87,13 @@ def save_excel_with_autofit(df: pd.DataFrame, path: str):
         for cell in column_cells:
             try:
                 if cell.value is not None:
-                    # 셀 값 문자열 표현의 길이를 계산합니다.
                     cell_value_str = str(cell.value)
                     max_length = max(max_length, len(cell_value_str))
             except Exception as e:
-                print(f"[열 너비 자동 맞춤] {cell.coordinate}에서 예외 발생: {e}")
+                print_error(f"[열 너비 자동 맞춤] {cell.coordinate}에서 예외 발생: {e}")
 
-        # 내용이 없거나 매우 짧은 경우 기본 최소 너비를 설정합니다.
         adjusted_width = max_length + 2 if max_length > 0 else 10
-        # type: ignore
-        ws.column_dimensions[column_letter].width = adjusted_width
+        ws.column_dimensions[column_letter].width = adjusted_width  # type: ignore
 
     wb.save(path)
     wb.close()
@@ -105,18 +107,20 @@ def find_and_prepare_excel_file(
     prev_month: str,
 ) -> tuple[pd.DataFrame | None, str | None]:
     if not download_dir:
-        raise EnvironmentError("Download directory ('download_dir') is not specified.")
+        raise EnvironmentError(
+            "다운로드 디렉토리('download_dir')가 지정되지 않았습니다."
+        )
 
     excel_files = [
         f
         for f in os.listdir(download_dir)
-        if f.startswith(file_prefix) and f.lower().endswith((".xls", ".xlsx"))
+        if f.startswith(file_prefix) and f.lower().endswith(EXCEL_EXTENSIONS)
     ]
 
     if not excel_files:
-        print(
-            f"Warning: No Excel file starting with '{file_prefix}' "
-            f"found in '{download_dir}'."
+        # 이 경우는 오류가 아니므로 print_error 대신 print_info를 사용합니다.
+        print_info(
+            f"'{file_prefix}'로 시작하는 파일을 찾을 수 없습니다. 이 검사는 건너뜁니다."
         )
         return None, None
 
@@ -125,23 +129,23 @@ def find_and_prepare_excel_file(
     all_dfs = []
     for file_name in excel_files:
         file_path = os.path.join(download_dir, file_name)
-        # 파일 확장자에 따라 변환 또는 바로 읽기
         if file_path.lower().endswith(".xlsx"):
             df = pd.read_excel(file_path)
         else:
             df = pd.read_excel(file_path, engine="xlrd")
         all_dfs.append(df)
 
-    # 모든 DataFrame을 합치기 (행 단위로)
     merged_df = pd.concat(all_dfs, ignore_index=True)
 
-    print(f"{file_prefix}: {len(merged_df)}건")
+    print_info(f"{output_file_basename} 원본 데이터: {len(merged_df)}건")
 
     destination_save_path = os.path.join(
         save_dir, f"{output_file_basename}_{prev_month}.xlsx"
     )
     merged_df.to_excel(destination_save_path, index=False)
-    print(f"모든 파일을 합쳐서 '{destination_save_path}'로 저장했습니다.")
+    print_info(
+        f"모든 파일을 합쳐서 '{os.path.basename(destination_save_path)}'(으)로 저장했습니다."
+    )
 
     return merged_df, destination_save_path
 
@@ -152,17 +156,13 @@ def zip_files_by_prefix(target_dir: str, prefix_list: list[str]):
     """
     files = [f for f in os.listdir(target_dir) if f.endswith(".xlsx")]
 
-    # 접두사별로 그룹핑
     for prefix in prefix_list:
         matched = [f for f in files if f.startswith(prefix)]
         if not matched:
-            print(f"⚠️ {prefix}로 시작하는 파일 없음")
+            print_zip_warning(prefix)
             continue
 
-        # zip 파일명은 첫 파일의 '_' 앞까지
-        group_name = (
-            matched[0].split("_")[0].split("(")[0]
-        )  # 예: [붙임3] 개인정보 접속기록 조회
+        group_name = matched[0].split("_")[0].split("(")[0]
         zip_name = f"{group_name}.zip"
         zip_path = os.path.join(target_dir, zip_name)
 
@@ -170,4 +170,31 @@ def zip_files_by_prefix(target_dir: str, prefix_list: list[str]):
             for filename in matched:
                 zipf.write(os.path.join(target_dir, filename), arcname=filename)
 
-        print(f"✅ {zip_name} 생성 ({len(matched)}개 파일 포함)")
+        print_zip_result(zip_name, len(matched))
+
+
+def run_and_save_check(
+    df: pd.DataFrame,
+    check_func,
+    save_path: str,
+    result_description: str,
+):
+    """
+    검사 함수를 실행하고, 결과가 있으면 Excel 파일로 저장한 후 상태 메시지를 출력합니다.
+
+    매개변수:
+        df (pd.DataFrame): 검사를 수행할 입력 DataFrame입니다.
+        check_func (function): DataFrame을 인자로 받아 필터링된 DataFrame을 반환하는 함수입니다.
+        save_path (str): 결과 Excel 파일이 저장될 경로입니다.
+        result_description (str): 결과가 발견되었거나 발견되지 않았을 때 출력할 메시지에 사용될 설명입니다.
+    """
+    filtered_df = check_func(df)
+    if not filtered_df.empty:
+        save_excel_with_autofit(filtered_df, save_path)
+        print_result(
+            is_detected=True,
+            description=result_description,
+            filename=os.path.basename(save_path),
+        )
+    else:
+        print_result(is_detected=False, description=result_description)

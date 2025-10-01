@@ -17,7 +17,8 @@ from typing import cast
 import holidays
 import pandas as pd
 
-from utils import find_and_prepare_excel_file, save_excel_with_autofit
+from display import print_checker_header
+from utils import find_and_prepare_excel_file, run_and_save_check
 
 # download_reason_checker.py 상수
 PERSONAL_INFO_DOWNLOAD_REASON_PREFIX = "개인정보 다운로드 사유 조회_"
@@ -53,7 +54,7 @@ def _unique_char_count_below_5(text_input) -> bool:
     return len(set(str(text_input))) <= 5
 
 
-def sayu_checker(download_dir: str, save_dir: str, prev_month: str):
+def sayu_checker(download_dir: str, save_dir: str, prev_month: str) -> int:
     """
     개인 정보 다운로드 사유에서 의심스러운 패턴을 확인하는 메인 함수입니다.
 
@@ -70,10 +71,11 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str):
         save_dir (str): 생성된 보고서 Excel 파일이 저장될 디렉토리입니다.
         prev_month (str): 'YYYYMM' 형식의 이전 달로, 출력 파일 이름 지정에 사용됩니다.
 
-    예외:
-        FileNotFoundError: 다운로드 사유 Excel 파일을 찾을 수 없는 경우.
+    반환 값:
+        int: 처리된 원본 데이터의 행 수입니다. 파일을 찾을 수 없으면 0입니다.
     """
-    # 다운로드 사유 Excel 파일을 찾아 복사하고 읽어들입니다.
+    print_checker_header(DOWNLOAD_REASON_REPORT_BASE)
+
     file_prefix = (
         f"{PERSONAL_INFO_DOWNLOAD_REASON_PREFIX}{datetime.today().strftime('%Y%m')}"
     )
@@ -87,79 +89,44 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str):
     )
 
     if df is None:
-        raise FileNotFoundError(
-            f"Download reason Excel file starting with '{file_prefix}' "
-            f"not found in '{download_dir}'."
+        return 0
+
+    checks_to_run = [
+        {
+            "function": _check_download_sayu,
+            "suffix": DOWNLOAD_REASON_INVALID_REASON_SUFFIX,
+            "description": "다운로드 사유 비정상",
+        },
+        {
+            "function": _filter_high_download_users,
+            "suffix": DOWNLOAD_REASON_HIGH_DOWNLOAD_COUNT_SUFFIX,
+            "description": f"다운로드 {DOWNLOAD_COUNT_THRESHOLD}건 초과",
+        },
+        {
+            "function": _filter_high_freq_download,
+            "suffix": DOWNLOAD_REASON_HIGH_FREQUENCY_SUFFIX,
+            "description": f"1시간 내 {DOWNLOAD_FREQUENCY_THRESHOLD}건 이상 다운로드",
+        },
+        {
+            "function": _filter_off_hour_and_holiday,
+            "suffix": DOWNLOAD_REASON_OFF_HOURS_SUFFIX,
+            "description": "업무 시간 외/휴일 다운로드",
+        },
+    ]
+
+    for check in checks_to_run:
+        save_path = os.path.join(
+            save_dir,
+            f"{DOWNLOAD_REASON_REPORT_BASE}({check['suffix']})_{prev_month}.xlsx",
+        )
+        run_and_save_check(
+            df=df,
+            check_func=check["function"],
+            save_path=save_path,
+            result_description=check["description"],
         )
 
-    # 의심스럽거나 짧은 사유의 다운로드를 필터링합니다.
-    # 원본 주석: "사유 비정상 작성"
-    filtered_invalid_reason = _check_download_sayu(df)
-    if not filtered_invalid_reason.empty:
-        save_path_invalid_reason = os.path.join(
-            save_dir,
-            f"{DOWNLOAD_REASON_REPORT_BASE}({DOWNLOAD_REASON_INVALID_REASON_SUFFIX})_{prev_month}.xlsx",
-        )
-        save_excel_with_autofit(filtered_invalid_reason, save_path_invalid_reason)
-        print(
-            f"Results for invalid download reasons saved to: {save_path_invalid_reason}"
-        )
-    else:
-        print("No records found for invalid download reason check.")
-
-    # 총 다운로드 기록 수가 많은 사용자를 필터링합니다.
-    # 원본 주석: "100건 이상 개인정보 다운로드"
-    filtered_high_download = _filter_high_download_users(df)
-    if not filtered_high_download.empty:
-        save_path_high_download = os.path.join(
-            save_dir,
-            f"{DOWNLOAD_REASON_REPORT_BASE}({DOWNLOAD_REASON_HIGH_DOWNLOAD_COUNT_SUFFIX})_{prev_month}.xlsx",
-        )
-        save_excel_with_autofit(filtered_high_download, save_path_high_download)
-        print(
-            f"Results for high download count (>{DOWNLOAD_COUNT_THRESHOLD}) "
-            f"saved to: {save_path_high_download}"
-        )
-    else:
-        print(
-            f"No records found for high download count "
-            f"(>{DOWNLOAD_COUNT_THRESHOLD}) check."
-        )
-
-    # 한 시간 내 다운로드 빈도가 높은 사용자를 필터링합니다.
-    # 원본 주석: "1시간 이내 다운로드 횟수 20건 이상"
-    filtered_high_freq = _filter_high_freq_download(df)
-    if not filtered_high_freq.empty:
-        save_path_high_freq = os.path.join(
-            save_dir,
-            f"{DOWNLOAD_REASON_REPORT_BASE}({DOWNLOAD_REASON_HIGH_FREQUENCY_SUFFIX})_{prev_month}.xlsx",
-        )
-        save_excel_with_autofit(filtered_high_freq, save_path_high_freq)
-        print(
-            f"Results for high download frequency (>{DOWNLOAD_FREQUENCY_THRESHOLD}/hr) "
-            f"saved to: {save_path_high_freq}"
-        )
-    else:
-        print(
-            f"No records found for high download frequency "
-            f"(>{DOWNLOAD_FREQUENCY_THRESHOLD}/hr) check."
-        )
-
-    # 업무 시간 외 또는 공휴일/주말에 발생한 다운로드를 필터링합니다.
-    # 원본 주석: "업무시간 외 다운로드"
-    filtered_off_hours_holiday = _filter_off_hour_and_holiday(df)
-    if not filtered_off_hours_holiday.empty:
-        save_path_off_hours_holiday = os.path.join(
-            save_dir,
-            f"{DOWNLOAD_REASON_REPORT_BASE}({DOWNLOAD_REASON_OFF_HOURS_SUFFIX})_{prev_month}.xlsx",
-        )
-        save_excel_with_autofit(filtered_off_hours_holiday, save_path_off_hours_holiday)
-        print(
-            f"Results for off-hours/holiday downloads saved to: "
-            f"{save_path_off_hours_holiday}"
-        )
-    else:
-        print("No records found for off-hours/holiday download check.")
+    return len(df)
 
 
 def _check_download_sayu(df: pd.DataFrame) -> pd.DataFrame:
@@ -184,9 +151,8 @@ def _check_download_sayu(df: pd.DataFrame) -> pd.DataFrame:
     expected_reason_col_index = 4
     if df.columns[expected_reason_col_index] != COL_DOWNLOAD_REASON:
         raise ValueError(
-            f"Expected '{COL_DOWNLOAD_REASON}' column at index "
-            f"{expected_reason_col_index}. Found: "
-            f"{df.columns[expected_reason_col_index]}"
+            f"'{COL_DOWNLOAD_REASON}' 컬럼이 {expected_reason_col_index} 위치에 없습니다. "
+            f"실제 컬럼: {df.columns[expected_reason_col_index]}"
         )
 
     # 다운로드 사유의 고유 문자 수에 대한 필터를 적용합니다.
@@ -217,8 +183,8 @@ def _filter_high_download_users(df: pd.DataFrame) -> pd.DataFrame:
     expected_count_col_index = 5
     if df.columns[expected_count_col_index] != COL_DOWNLOAD_COUNT:
         raise ValueError(
-            f"Expected '{COL_DOWNLOAD_COUNT}' column at index "
-            f"{expected_count_col_index}. Found: {df.columns[expected_count_col_index]}"
+            f"'{COL_DOWNLOAD_COUNT}' 컬럼이 {expected_count_col_index} 위치에 없습니다. "
+            f"실제 컬럼: {df.columns[expected_count_col_index]}"
         )
 
     # 직원 ID별로 그룹화하고 다운로드 수를 합산합니다.

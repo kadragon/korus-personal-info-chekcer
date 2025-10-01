@@ -15,7 +15,8 @@ from datetime import datetime
 import holidays
 import pandas as pd
 
-from utils import find_and_prepare_excel_file, save_excel_with_autofit
+from display import print_checker_header
+from utils import find_and_prepare_excel_file, run_and_save_check
 
 # Constants for login_checker.py
 LOGIN_LOG_FILE_PREFIX = "사용자접속내역_Login내역_"  # 사용자 로그인 기록 파일의 접두사
@@ -41,7 +42,7 @@ LOGIN_OFF_HOURS_END = (
 )
 
 
-def login_checker(download_dir: str, save_dir: str, prev_month: str):
+def login_checker(download_dir: str, save_dir: str, prev_month: str) -> int:
     """
     로그인 기록 데이터에 대한 다양한 검사를 수행하는 메인 함수입니다.
 
@@ -55,18 +56,18 @@ def login_checker(download_dir: str, save_dir: str, prev_month: str):
     매개변수:
         download_dir (str): 원본 로그인 기록 Excel 파일이 있는 디렉토리입니다.
         save_dir (str): 생성된 보고서 Excel 파일이 저장될 디렉토리입니다.
-        prev_month (str): 'YYYYMM' 형식의 이전 달로, 출력 파일 이름 지정 및
-                          `find_and_prepare_excel_file`에서 처리하지 않은 경우
-                          올바른 입력 파일을 선택하는 데 사용될 수 있습니다.
+        prev_month (str): 'YYYYMM' 형식의 이전 달로, 출력 파일 이름 지정에 사용됩니다.
+
+    반환 값:
+        int: 처리된 원본 데이터의 행 수입니다. 파일을 찾을 수 없으면 0입니다.
 
     예외:
-        FileNotFoundError: 지정된 로그인 기록 Excel 파일을 찾을 수 없는 경우.
         ValueError: 예상되는 'IP' 열이 10번째 위치(인덱스 9)에 없는 경우.
     """
+    print_checker_header(LOGIN_CHECK_REPORT_BASE)
+
     file_prefix = f"{LOGIN_LOG_FILE_PREFIX}{datetime.today().strftime('%Y%m')}"
 
-    # 유틸리티 함수를 사용하여 로그인 기록 Excel 파일을 찾고, 복사하고, 읽습니다.
-    # 복사된 파일은 save_dir에 표준화된 이름으로 저장됩니다.
     df, _ = find_and_prepare_excel_file(
         download_dir,
         file_prefix,
@@ -76,61 +77,46 @@ def login_checker(download_dir: str, save_dir: str, prev_month: str):
     )
 
     if df is None:
-        # find_and_prepare_excel_file은 파일이 없는 경우 이미 경고를 출력합니다.
-        # 기본 데이터 소스가 누락된 경우 실행을 중지하기 위해 이 오류가 발생합니다.
-        raise FileNotFoundError(
-            f"Login history Excel file starting with "
-            f"'{file_prefix}' not found in '{download_dir}'."
-        )
+        return 0
 
-    # 10번째 열(인덱스 9)이 'IP'인지 확인합니다.
-    # 이는 예상 파일 형식에 기반한 온전성 검사입니다.
-    # 원본 주석: "5. 컬럼명 확인"
     expected_ip_col_index = 9
     if df.columns[expected_ip_col_index] != COL_IP:
         raise ValueError(
-            f"Expected '{COL_IP}' column at index {expected_ip_col_index}. "
-            f"Found: {df.columns[expected_ip_col_index]}"
+            f"'{COL_IP}' 컬럼이 {expected_ip_col_index} 위치에 없습니다. "
+            f"실제 컬럼: {df.columns[expected_ip_col_index]}"
         )
 
-    # 짧은 시간 내에 여러 IP에서 로그인하는 사용자를 필터링합니다.
-    # 원본 주석: "6. 60분 이내에 다른 IP 접속"
-    filtered_ip_switch = _filter_ip_switch(df)
-    if not filtered_ip_switch.empty:
-        save_path_ip_switch = os.path.join(
-            save_dir,
-            f"{LOGIN_CHECK_REPORT_BASE}({LOGIN_REPORT_IP_SWITCH_SUFFIX})_{prev_month}.xlsx",
-        )
-        save_excel_with_autofit(filtered_ip_switch, save_path_ip_switch)
-        print(f"IP switch check results saved to: {save_path_ip_switch}")
-    else:
-        print("No records found for IP switch check.")
+    checks_to_run = [
+        {
+            "function": _filter_ip_switch,
+            "suffix": LOGIN_REPORT_IP_SWITCH_SUFFIX,
+            "description": f"{LOGIN_IP_SWITCH_WINDOW_HOURS}시간 내 {LOGIN_IP_SWITCH_MIN_IPS}개 이상 IP 사용",
+        },
+        {
+            "function": _filter_off_hours,
+            "suffix": LOGIN_REPORT_OFF_HOURS_SUFFIX,
+            "description": "업무 시간 외 로그인",
+        },
+        {
+            "function": _filter_holiday_and_weekend,
+            "suffix": LOGIN_REPORT_HOLIDAY_SUFFIX,
+            "description": "휴일/주말 로그인",
+        },
+    ]
 
-    # 표준 업무 시간 외의 로그인을 필터링합니다.
-    # 원본 주석: "7. 08:00~19:00 이외 접속" - 참고: 상수가 이를 더 정확하게 정의합니다.
-    filtered_off_hours = _filter_off_hours(df)
-    if not filtered_off_hours.empty:
-        save_path_off_hours = os.path.join(
+    for check in checks_to_run:
+        save_path = os.path.join(
             save_dir,
-            f"{LOGIN_CHECK_REPORT_BASE}({LOGIN_REPORT_OFF_HOURS_SUFFIX})_{prev_month}.xlsx",
+            f"{LOGIN_CHECK_REPORT_BASE}({check['suffix']})_{prev_month}.xlsx",
         )
-        save_excel_with_autofit(filtered_off_hours, save_path_off_hours)
-        print(f"Off-hours login results saved to: {save_path_off_hours}")
-    else:
-        print("No records found for off-hours login check.")
+        run_and_save_check(
+            df=df,
+            check_func=check["function"],
+            save_path=save_path,
+            result_description=check["description"],
+        )
 
-    # 공휴일 또는 주말 로그인을 필터링합니다.
-    # 원본 주석: "8. 토, 일, 공휴일 접속"
-    filtered_holiday_weekend = _filter_holiday_and_weekend(df)
-    if not filtered_holiday_weekend.empty:
-        save_path_holiday_weekend = os.path.join(
-            save_dir,
-            f"{LOGIN_CHECK_REPORT_BASE}({LOGIN_REPORT_HOLIDAY_SUFFIX})_{prev_month}.xlsx",
-        )
-        save_excel_with_autofit(filtered_holiday_weekend, save_path_holiday_weekend)
-        print(f"Holiday/weekend login results saved to: {save_path_holiday_weekend}")
-    else:
-        print("No records found for holiday/weekend login check.")
+    return len(df)
 
 
 def _filter_ip_switch(df: pd.DataFrame) -> pd.DataFrame:
