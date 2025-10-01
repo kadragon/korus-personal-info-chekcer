@@ -220,7 +220,9 @@ def _filter_by_job_master_exclude_detail_id(df: pd.DataFrame) -> pd.DataFrame:
     is_not_self_access = [
         str(emp_id) not in str(detail)
         for emp_id, detail in zip(
-            hr_master_df[employee_id_col_to_use], hr_master_df[COL_DETAIL_CONTENT]
+            hr_master_df[employee_id_col_to_use],
+            hr_master_df[COL_DETAIL_CONTENT],
+            strict=True,
         )
     ]
     filtered_df = hr_master_df[is_not_self_access]
