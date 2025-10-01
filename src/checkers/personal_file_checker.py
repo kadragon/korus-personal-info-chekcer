@@ -14,7 +14,7 @@ import os
 from datetime import datetime
 
 import pandas as pd
-from utils import save_excel_with_autofit, find_and_prepare_excel_file
+from utils import find_and_prepare_excel_file, save_excel_with_autofit
 
 # personal_file_checker.py 상수
 PERSONAL_INFO_ACCESS_LOG_PREFIX = (
@@ -59,12 +59,14 @@ def personal_file_checker(download_dir: str, save_dir: str, prev_month: str):
 
     `download_dir`에서 모든 관련 Excel 파일을 찾아 단일 DataFrame으로 병합한 후,
     다음과 같은 다양한 필터를 적용합니다:
-    1. '인사마스터' (HR 마스터) 프로그램 접근 (사용자가 자신의 기록에 접근하는 경우 제외).
+    1. '인사마스터' (HR 마스터) 프로그램 접근 (사용자가 자신의 기록에
+       접근하는 경우 제외).
     2. 비정상적으로 많은 수의 기록을 조회한 사용자 (`VIEW_THRESHOLD` 초과).
     3. 비정상적으로 많은 수의 기록을 저장한 사용자 (`SAVE_THRESHOLD` 초과).
 
     각 검사 결과는 별도의 Excel 파일에 저장됩니다. 대량 접근에 대한 보고서는
-    임계값을 초과한 특정 사용자의 모든 기록을 포함하는 시트가 있는 다중 시트 Excel 파일입니다.
+    임계값을 초과한 특정 사용자의 모든 기록을 포함하는 시트가 있는
+    다중 시트 Excel 파일입니다.
 
     매개변수:
         download_dir (str): 원본 개인 정보 접근 로그 Excel 파일이 있는 디렉토리입니다.
@@ -81,11 +83,13 @@ def personal_file_checker(download_dir: str, save_dir: str, prev_month: str):
         # download_dir이 항상 사용 가능하다면 직접 인수로 만드는 것을 고려하십시오.
         raise EnvironmentError("DOWNLOAD_DIR environment variable is not set.")
 
-    PERSONAL_INFO_ACCESS_LOG_PREFIX_FILE_PREFIX = f"{PERSONAL_INFO_ACCESS_LOG_PREFIX}{datetime.today().strftime('%Y%m')}"
+    file_prefix = (
+        f"{PERSONAL_INFO_ACCESS_LOG_PREFIX}{datetime.today().strftime('%Y%m')}"
+    )
 
     df, _ = find_and_prepare_excel_file(
         download_dir,
-        PERSONAL_INFO_ACCESS_LOG_PREFIX_FILE_PREFIX,
+        file_prefix,
         save_dir,
         PERSONAL_INFO_REPORT_BASE,
         prev_month,
@@ -93,17 +97,18 @@ def personal_file_checker(download_dir: str, save_dir: str, prev_month: str):
 
     if df is None:
         raise FileNotFoundError(
-            f"Download reason Excel file starting with '{PERSONAL_INFO_ACCESS_LOG_PREFIX_FILE_PREFIX}' not found in '{download_dir}'."
+            f"Download reason Excel file starting with '{file_prefix}' "
+            f"not found in '{download_dir}'."
         )
 
     df_to_analyze = df
 
     # 필터 1: '인사마스터'(HR 마스터) 접근, 본인 접근 제외.
     # 원본 주석: "인사마스터에서 조회한 기록 (본인 제외)"
-    filtered_master_access = _filter_by_job_master_exclude_detail_id(
-        df_to_analyze)
+    filtered_master_access = _filter_by_job_master_exclude_detail_id(df_to_analyze)
     if not filtered_master_access.empty:
-        # MERGED_...TEMPLATE을 기반으로 파일 이름을 구성한 다음 특정 접미사를 추가합니다.
+        # MERGED...TEMPLATE을 기반으로 파일 이름을 구성한 다음
+        # 특정 접미사를 추가합니다.
         base_report_name_for_master = (
             MERGED_PERSONAL_INFO_ACCESS_FILENAME_TEMPLATE.split(".")[0].format(
                 prev_month
@@ -114,8 +119,7 @@ def personal_file_checker(download_dir: str, save_dir: str, prev_month: str):
             f"{base_report_name_for_master}({PERSONAL_INFO_ACCESS_MASTER_SUFFIX}).xlsx",
         )
         save_excel_with_autofit(filtered_master_access, save_path_master)
-        print(
-            f"HR Master access (excluding self) results saved to: {save_path_master}")
+        print(f"HR Master access (excluding self) results saved to: {save_path_master}")
     else:
         print("No records found for HR Master access (excluding self) check.")
 
@@ -136,7 +140,8 @@ def personal_file_checker(download_dir: str, save_dir: str, prev_month: str):
         job_column_name=COL_JOB_PERFORMANCE,
     )
     print(
-        f"High-volume view check (>{VIEW_THRESHOLD} views) results processing attempted."
+        f"High-volume view check (>{VIEW_THRESHOLD} views) results processing "
+        f"attempted."
     )
 
     # 필터 3: 대량의 기록을 저장하는 사용자.
@@ -156,7 +161,8 @@ def personal_file_checker(download_dir: str, save_dir: str, prev_month: str):
         job_column_name=COL_JOB_PERFORMANCE,
     )
     print(
-        f"High-volume save check (>{SAVE_THRESHOLD} saves) results processing attempted."
+        f"High-volume save check (>{SAVE_THRESHOLD} saves) results processing "
+        f"attempted."
     )
 
 
@@ -167,12 +173,13 @@ def _filter_by_job_master_exclude_detail_id(df: pd.DataFrame) -> pd.DataFrame:
 
     매개변수:
         df (pd.DataFrame): 개인 정보 접근 로그를 포함하는 DataFrame입니다.
-                           예상 열: `COL_PROGRAM_NAME`, `COL_EMPLOYEE_ID` (또는 `COL_EMPLOYEE_ID_LOGIN`),
+                           예상 열: `COL_PROGRAM_NAME`,
+                           `COL_EMPLOYEE_ID` (또는 `COL_EMPLOYEE_ID_LOGIN`),
                            `COL_ACCESS_TIME`, `COL_DETAIL_CONTENT`.
 
     반환 값:
-        pd.DataFrame: 필터링된 기록을 포함하며 직원 ID와 접근 시간으로 정렬된 DataFrame입니다.
-                      해당 기록이 없으면 빈 DataFrame을 반환합니다.
+        pd.DataFrame: 필터링된 기록을 포함하며 직원 ID와 접근 시간으로 정렬된
+                      DataFrame입니다. 해당 기록이 없으면 빈 DataFrame을 반환합니다.
 
     예외:
         ValueError: 필터링에 필수적인 열이 누락된 경우.
@@ -183,7 +190,8 @@ def _filter_by_job_master_exclude_detail_id(df: pd.DataFrame) -> pd.DataFrame:
         employee_id_col_to_use = COL_EMPLOYEE_ID_LOGIN
     elif COL_EMPLOYEE_ID not in df.columns:
         raise ValueError(
-            f"Required employee ID column ('{COL_EMPLOYEE_ID}' or '{COL_EMPLOYEE_ID_LOGIN}') not found in DataFrame."
+            f"Required employee ID column ('{COL_EMPLOYEE_ID}' or "
+            f"'{COL_EMPLOYEE_ID_LOGIN}') not found in DataFrame."
         )
 
     required_cols = [
@@ -195,10 +203,12 @@ def _filter_by_job_master_exclude_detail_id(df: pd.DataFrame) -> pd.DataFrame:
     for col in required_cols:
         if col not in df.columns:
             raise ValueError(
-                f"Required column '{col}' not found in DataFrame for HR Master filtering."
+                f"Required column '{col}' not found in DataFrame for HR Master "
+                f"filtering."
             )
 
-    # '인사마스터'(HR 마스터) 프로그램 접근을 필터링합니다. '인사마스터'는 특정 프로그램 이름입니다.
+    # '인사마스터'(HR 마스터) 프로그램 접근을 필터링합니다.
+    # '인사마스터'는 특정 프로그램 이름입니다.
     # 원본 주석: "2. '프로그램명' == '인사마스터' 필터"
     filtered_df = df[df[COL_PROGRAM_NAME] == "인사마스터"]
 
@@ -232,10 +242,12 @@ def _extract_and_save_by_job(
         save_path (str): 결과가 저장될 Excel 파일의 전체 경로입니다.
         job (str): 계산할 특정 작업 유형입니다 (예: '조회', '저장').
         threshold (int): 사용자를 표시하기 위해 `job`을 수행해야 하는 최소 횟수입니다.
-        job_column_name (str): `df`에서 작업 유형을 포함하는 열의 이름입니다 (예: `COL_JOB_PERFORMANCE`).
+        job_column_name (str): `df`에서 작업 유형을 포함하는 열의 이름입니다
+                               (예: `COL_JOB_PERFORMANCE`).
 
     예외:
-        ValueError: 필수 열(`COL_EMPLOYEE_ID` 또는 대체 열, `COL_EMPLOYEE_NAME`, `job_column_name`)이 누락된 경우.
+        ValueError: 필수 열(`COL_EMPLOYEE_ID` 또는 대체 열, `COL_EMPLOYEE_NAME`,
+                      `job_column_name`)이 누락된 경우.
     """
     # 사용할 직원 ID 열('교번' 또는 '신분번호')을 결정합니다.
     employee_id_col_to_use = COL_EMPLOYEE_ID
@@ -243,7 +255,8 @@ def _extract_and_save_by_job(
         employee_id_col_to_use = COL_EMPLOYEE_ID_LOGIN
     elif COL_EMPLOYEE_ID not in df.columns:
         raise ValueError(
-            f"Required employee ID column ('{COL_EMPLOYEE_ID}' or '{COL_EMPLOYEE_ID_LOGIN}') not found."
+            f"Required employee ID column ('{COL_EMPLOYEE_ID}' or "
+            f"'{COL_EMPLOYEE_ID_LOGIN}') not found."
         )
 
     required_cols_check = [
@@ -260,8 +273,7 @@ def _extract_and_save_by_job(
     # 특정 작업 유형과 일치하는 기록을 필터링합니다.
     job_specific_df = df[df[job_column_name] == job]
     # 직원 ID별로 그룹화하고 작업 발생 횟수를 계산합니다.
-    job_counts_per_user = job_specific_df.groupby(
-        employee_id_col_to_use).size()
+    job_counts_per_user = job_specific_df.groupby(employee_id_col_to_use).size()
     # 이 작업에 대한 임계값을 충족하거나 초과하는 사용자를 식별합니다.
     target_user_ids = job_counts_per_user[
         job_counts_per_user >= threshold
@@ -269,7 +281,8 @@ def _extract_and_save_by_job(
 
     if not target_user_ids:
         print(
-            f"No users found exceeding threshold of {threshold} for job '{job}' in '{save_path}'."
+            f"No users found exceeding threshold of {threshold} for job '{job}' "
+            f"in '{save_path}'."
         )
         # 원하는 경우 빈 파일 또는 알림이 있는 파일을 만듭니다.
         # 지금은 메시지만 출력합니다. 빈 파일이 필요한 경우:
@@ -294,14 +307,15 @@ def _extract_and_save_by_job(
             # Excel의 문자 제한 내에서 시트 이름을 만듭니다.
             sheet_name = f"{employee_id}_{user_name}"
             if len(sheet_name) > SHEET_NAME_MAX_CHARS:
-                # 필요한 경우 잘라내고 고유성을 보장하지만 여기서는 단순 잘라내기를 사용합니다.
+                # 필요한 경우 잘라내고 고유성을 보장하지만 여기서는
+                # 단순 잘라내기를 사용합니다.
                 sheet_name = sheet_name[:SHEET_NAME_MAX_CHARS]
 
-            user_all_records_df.to_excel(
-                writer, sheet_name=sheet_name, index=False)
-            # 자동 맞춤 참고: 현재 `save_excel_with_autofit` 유틸리티는 DataFrame을 새 파일에 저장합니다.
-            # 그런 다음 자동 맞춤합니다. ExcelWriter 컨텍스트 내의 시트에 직접 적용하려면
-            # 유틸리티를 수정하거나 저장된 다중 시트 파일을 후처리해야 합니다.
+            user_all_records_df.to_excel(writer, sheet_name=sheet_name, index=False)
+            # 자동 맞춤 참고: 현재 `save_excel_with_autofit` 유틸리티는
+            # DataFrame을 새 파일에 저장합니다. 그런 다음 자동 맞춤합니다.
+            # ExcelWriter 컨텍스트 내의 시트에 직접 적용하려면 유틸리티를 수정하거나
+            # 저장된 다중 시트 파일을 후처리해야 합니다.
             # 이는 이전 docstring 업데이트에서도 언급되었습니다.
 
     print(

@@ -12,10 +12,11 @@
 
 import os
 from datetime import datetime
-import pandas as pd
-import holidays
+from typing import cast
 
-from utils import save_excel_with_autofit, find_and_prepare_excel_file
+import holidays
+import pandas as pd
+from utils import find_and_prepare_excel_file, save_excel_with_autofit
 
 # download_reason_checker.py 상수
 PERSONAL_INFO_DOWNLOAD_REASON_PREFIX = "개인정보 다운로드 사유 조회_"
@@ -72,11 +73,13 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str):
         FileNotFoundError: 다운로드 사유 Excel 파일을 찾을 수 없는 경우.
     """
     # 다운로드 사유 Excel 파일을 찾아 복사하고 읽어들입니다.
-    PERSONAL_INFO_DOWNLOAD_REASON_FILE_PREFIX = f"{PERSONAL_INFO_DOWNLOAD_REASON_PREFIX}{datetime.today().strftime('%Y%m')}"
+    file_prefix = (
+        f"{PERSONAL_INFO_DOWNLOAD_REASON_PREFIX}{datetime.today().strftime('%Y%m')}"
+    )
 
     df, _ = find_and_prepare_excel_file(
         download_dir,
-        PERSONAL_INFO_DOWNLOAD_REASON_FILE_PREFIX,
+        file_prefix,
         save_dir,
         DOWNLOAD_REASON_REPORT_BASE,
         prev_month,
@@ -84,7 +87,8 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str):
 
     if df is None:
         raise FileNotFoundError(
-            f"Download reason Excel file starting with '{PERSONAL_INFO_DOWNLOAD_REASON_FILE_PREFIX}' not found in '{download_dir}'."
+            f"Download reason Excel file starting with '{file_prefix}' "
+            f"not found in '{download_dir}'."
         )
 
     # 의심스럽거나 짧은 사유의 다운로드를 필터링합니다.
@@ -95,10 +99,10 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str):
             save_dir,
             f"{DOWNLOAD_REASON_REPORT_BASE}({DOWNLOAD_REASON_INVALID_REASON_SUFFIX})_{prev_month}.xlsx",
         )
-        save_excel_with_autofit(filtered_invalid_reason,
-                                save_path_invalid_reason)
+        save_excel_with_autofit(filtered_invalid_reason, save_path_invalid_reason)
         print(
-            f"Results for invalid download reasons saved to: {save_path_invalid_reason}"
+            f"Results for invalid download reasons saved to: "
+            f"{save_path_invalid_reason}"
         )
     else:
         print("No records found for invalid download reason check.")
@@ -111,14 +115,15 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str):
             save_dir,
             f"{DOWNLOAD_REASON_REPORT_BASE}({DOWNLOAD_REASON_HIGH_DOWNLOAD_COUNT_SUFFIX})_{prev_month}.xlsx",
         )
-        save_excel_with_autofit(filtered_high_download,
-                                save_path_high_download)
+        save_excel_with_autofit(filtered_high_download, save_path_high_download)
         print(
-            f"Results for high download count (>{DOWNLOAD_COUNT_THRESHOLD}) saved to: {save_path_high_download}"
+            f"Results for high download count (>{DOWNLOAD_COUNT_THRESHOLD}) "
+            f"saved to: {save_path_high_download}"
         )
     else:
         print(
-            f"No records found for high download count (>{DOWNLOAD_COUNT_THRESHOLD}) check."
+            f"No records found for high download count "
+            f"(>{DOWNLOAD_COUNT_THRESHOLD}) check."
         )
 
     # 한 시간 내 다운로드 빈도가 높은 사용자를 필터링합니다.
@@ -131,11 +136,13 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str):
         )
         save_excel_with_autofit(filtered_high_freq, save_path_high_freq)
         print(
-            f"Results for high download frequency (>{DOWNLOAD_FREQUENCY_THRESHOLD}/hr) saved to: {save_path_high_freq}"
+            f"Results for high download frequency (>{DOWNLOAD_FREQUENCY_THRESHOLD}/hr) "
+            f"saved to: {save_path_high_freq}"
         )
     else:
         print(
-            f"No records found for high download frequency (>{DOWNLOAD_FREQUENCY_THRESHOLD}/hr) check."
+            f"No records found for high download frequency "
+            f"(>{DOWNLOAD_FREQUENCY_THRESHOLD}/hr) check."
         )
 
     # 업무 시간 외 또는 공휴일/주말에 발생한 다운로드를 필터링합니다.
@@ -146,10 +153,10 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str):
             save_dir,
             f"{DOWNLOAD_REASON_REPORT_BASE}({DOWNLOAD_REASON_OFF_HOURS_SUFFIX})_{prev_month}.xlsx",
         )
-        save_excel_with_autofit(
-            filtered_off_hours_holiday, save_path_off_hours_holiday)
+        save_excel_with_autofit(filtered_off_hours_holiday, save_path_off_hours_holiday)
         print(
-            f"Results for off-hours/holiday downloads saved to: {save_path_off_hours_holiday}"
+            f"Results for off-hours/holiday downloads saved to: "
+            f"{save_path_off_hours_holiday}"
         )
     else:
         print("No records found for off-hours/holiday download check.")
@@ -177,7 +184,9 @@ def _check_download_sayu(df: pd.DataFrame) -> pd.DataFrame:
     expected_reason_col_index = 4
     if df.columns[expected_reason_col_index] != COL_DOWNLOAD_REASON:
         raise ValueError(
-            f"Expected '{COL_DOWNLOAD_REASON}' column at index {expected_reason_col_index}. Found: {df.columns[expected_reason_col_index]}"
+            f"Expected '{COL_DOWNLOAD_REASON}' column at index "
+            f"{expected_reason_col_index}. Found: "
+            f"{df.columns[expected_reason_col_index]}"
         )
 
     # 다운로드 사유의 고유 문자 수에 대한 필터를 적용합니다.
@@ -208,12 +217,12 @@ def _filter_high_download_users(df: pd.DataFrame) -> pd.DataFrame:
     expected_count_col_index = 5
     if df.columns[expected_count_col_index] != COL_DOWNLOAD_COUNT:
         raise ValueError(
-            f"Expected '{COL_DOWNLOAD_COUNT}' column at index {expected_count_col_index}. Found: {df.columns[expected_count_col_index]}"
+            f"Expected '{COL_DOWNLOAD_COUNT}' column at index "
+            f"{expected_count_col_index}. Found: {df.columns[expected_count_col_index]}"
         )
 
     # 직원 ID별로 그룹화하고 다운로드 수를 합산합니다.
-    download_sum_per_user = df.groupby(COL_EMPLOYEE_ID)[
-        COL_DOWNLOAD_COUNT].sum()
+    download_sum_per_user = df.groupby(COL_EMPLOYEE_ID)[COL_DOWNLOAD_COUNT].sum()
     # 다운로드 수 임계값을 충족하거나 초과하는 사용자를 식별합니다.
     target_users = download_sum_per_user[
         download_sum_per_user >= DOWNLOAD_COUNT_THRESHOLD
@@ -227,7 +236,8 @@ def _filter_high_download_users(df: pd.DataFrame) -> pd.DataFrame:
 
 def _filter_high_freq_download(df: pd.DataFrame) -> pd.DataFrame:
     """
-    높은 빈도(한 시간 내에 임계값 횟수 이상)로 데이터를 다운로드한 사용자를 필터링합니다.
+    높은 빈도(한 시간 내에 임계값 횟수 이상)로 데이터를 다운로드한
+    사용자를 필터링합니다.
 
     매개변수:
         df (pd.DataFrame): 다운로드 기록을 포함하는 DataFrame입니다. 예상 열:
@@ -236,7 +246,8 @@ def _filter_high_freq_download(df: pd.DataFrame) -> pd.DataFrame:
 
     반환 값:
         pd.DataFrame: 높은 빈도의 다운로드 폭주에 해당하는 기록을 포함하며,
-                      직원 ID와 접근 시간으로 정렬된 DataFrame입니다. 해당 폭주가 없으면 빈 DataFrame을 반환합니다.
+                      직원 ID와 접근 시간으로 정렬된 DataFrame입니다.
+                      해당 폭주가 없으면 빈 DataFrame을 반환합니다.
 
     예외:
         ValueError: 입력 DataFrame `df`가 None인 경우.
@@ -253,12 +264,11 @@ def _filter_high_freq_download(df: pd.DataFrame) -> pd.DataFrame:
 
     # 직원 ID별로 그룹화하여 각 사용자의 다운로드 패턴을 분석합니다.
     for _, group in df_copy.groupby(COL_EMPLOYEE_ID):
-        group = group.sort_values(
-            COL_ACCESS_TIME
-        ).reset_index()  # 정수 인덱스 i와 함께 .loc를 사용하기 위해 인덱스를 재설정합니다.
+        # 정수 인덱스 i와 함께 .loc를 사용하기 위해 인덱스를 재설정합니다.
+        group = group.sort_values(COL_ACCESS_TIME).reset_index()
 
         for i in range(len(group)):
-            current_download_time = group.loc[i, COL_ACCESS_TIME]
+            current_download_time = cast(pd.Timestamp, group.loc[i, COL_ACCESS_TIME])
             # 현재 다운로드 시간으로부터 1시간 창을 정의합니다.
             window_end_time = current_download_time + pd.Timedelta(hours=1)
 
@@ -308,8 +318,7 @@ def _filter_off_hour_and_holiday(df: pd.DataFrame) -> pd.DataFrame:
 
     # 해당 연도에 대한 대한민국 공휴일을 초기화합니다.
     years = df_copy[COL_ACCESS_TIME].dt.year.unique()
-    # type: ignore # holidays.KR은 유효합니다.
-    kr_holidays = holidays.KR(years=years)
+    kr_holidays = holidays.KR(years=years)  # type: ignore [attr-defined]
 
     # 검사를 위한 시간적 특징을 추출합니다.
     weekday = df_copy[COL_ACCESS_TIME].dt.weekday
@@ -317,8 +326,7 @@ def _filter_off_hour_and_holiday(df: pd.DataFrame) -> pd.DataFrame:
     date_only = df_copy[COL_ACCESS_TIME].dt.date  # 공휴일 확인용
 
     # 업무 시간 외, 주말 및 공휴일 조건을 정의합니다.
-    is_off_hour = (hour < DOWNLOAD_OFF_HOURS_END) | (
-        hour >= DOWNLOAD_OFF_HOURS_START)
+    is_off_hour = (hour < DOWNLOAD_OFF_HOURS_END) | (hour >= DOWNLOAD_OFF_HOURS_START)
     is_weekend = weekday >= 5  # 월요일은 0이고 일요일은 6입니다; 토요일=5, 일요일=6.
     is_holiday = date_only.isin(kr_holidays)
 
