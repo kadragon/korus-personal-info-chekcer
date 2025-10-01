@@ -217,11 +217,12 @@ def _filter_by_job_master_exclude_detail_id(df: pd.DataFrame) -> pd.DataFrame:
     # 조건 2: '상세내용'에 자신의 '교번'이 포함되어 있지 않은 기록만 남깁니다.
     #         (즉, 타인 조회 기록만 필터링)
     # 각 행을 순회하며 '교번'과 '상세내용'을 비교해야 하므로 apply 함수를 사용합니다.
-    is_not_self_access = hr_master_df.apply(
-        lambda row: str(row[employee_id_col_to_use])
-        not in str(row[COL_DETAIL_CONTENT]),
-        axis=1,
-    )
+    is_not_self_access = [
+        str(emp_id) not in str(detail)
+        for emp_id, detail in zip(
+            hr_master_df[employee_id_col_to_use], hr_master_df[COL_DETAIL_CONTENT]
+        )
+    ]
     filtered_df = hr_master_df[is_not_self_access]
 
     # 결과를 정렬합니다.
