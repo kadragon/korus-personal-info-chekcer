@@ -12,14 +12,14 @@
 import os
 from datetime import datetime
 
-import pandas as pd
 import holidays
+import pandas as pd
 
-from utils import save_excel_with_autofit, find_and_prepare_excel_file
+from utils import find_and_prepare_excel_file, save_excel_with_autofit
 
 # Constants for login_checker.py
 LOGIN_LOG_FILE_PREFIX = "사용자접속내역_Login내역_"  # 사용자 로그인 기록 파일의 접두사
-LOGIN_CHECK_REPORT_BASE = "[붙임2] 코러스 개인정보처리시스템 접속기록 점검 대장"  # 로그인 점검 보고서의 기본 이름
+LOGIN_CHECK_REPORT_BASE = "[붙임2] 코러스 사용자 접근 기록"  # 로그인 점검 보고서
 # 보고서 접미사: LOGIN_IP_SWITCH_WINDOW_HOURS 내에 여러 IP에서 로그인하는 사용자
 LOGIN_REPORT_IP_SWITCH_SUFFIX = "60분IP"
 LOGIN_REPORT_OFF_HOURS_SUFFIX = "업무시간외"  # 보고서 접미사: 표준 근무 시간 외 로그인
@@ -27,7 +27,8 @@ LOGIN_REPORT_HOLIDAY_SUFFIX = "휴일"  # 보고서 접미사: 공휴일 또는 
 COL_IP = "IP"  # IP 주소
 COL_ACCESS_TIME = "접근일시"  # 접근 타임스탬프 (예: "YYYY-MM-DD HH:MM:SS")
 COL_EMPLOYEE_ID_LOGIN = "신분번호"  # 직원 ID, 특히 로그인 기록 파일에서 발견됨.
-# login_checker용: 동일 사용자에 대해 여러 IP에서의 로그인을 감지하기 위한 시간 창(시간 단위).
+# login_checker용: 동일 사용자에 대해 여러 IP에서의 로그인을
+# 감지하기 위한 시간 창(시간 단위).
 LOGIN_IP_SWITCH_WINDOW_HOURS = 1
 LOGIN_IP_SWITCH_MIN_IPS = (
     3  # login_checker용: IP 변경 알림을 트리거하기 위한 창 내 최소 고유 IP 수.
@@ -55,19 +56,20 @@ def login_checker(download_dir: str, save_dir: str, prev_month: str):
         download_dir (str): 원본 로그인 기록 Excel 파일이 있는 디렉토리입니다.
         save_dir (str): 생성된 보고서 Excel 파일이 저장될 디렉토리입니다.
         prev_month (str): 'YYYYMM' 형식의 이전 달로, 출력 파일 이름 지정 및
-                          `find_and_prepare_excel_file`에서 처리하지 않은 경우 올바른 입력 파일을 선택하는 데 사용될 수 있습니다.
+                          `find_and_prepare_excel_file`에서 처리하지 않은 경우
+                          올바른 입력 파일을 선택하는 데 사용될 수 있습니다.
 
     예외:
         FileNotFoundError: 지정된 로그인 기록 Excel 파일을 찾을 수 없는 경우.
         ValueError: 예상되는 'IP' 열이 10번째 위치(인덱스 9)에 없는 경우.
     """
-    LOGIN_LOG_FILE_PREFIX_FILE_PREFIX = f"{LOGIN_LOG_FILE_PREFIX}{datetime.today().strftime('%Y%m')}"
+    file_prefix = f"{LOGIN_LOG_FILE_PREFIX}{datetime.today().strftime('%Y%m')}"
 
     # 유틸리티 함수를 사용하여 로그인 기록 Excel 파일을 찾고, 복사하고, 읽습니다.
     # 복사된 파일은 save_dir에 표준화된 이름으로 저장됩니다.
     df, _ = find_and_prepare_excel_file(
         download_dir,
-        LOGIN_LOG_FILE_PREFIX_FILE_PREFIX,
+        file_prefix,
         save_dir,
         LOGIN_CHECK_REPORT_BASE,
         prev_month,
@@ -77,15 +79,18 @@ def login_checker(download_dir: str, save_dir: str, prev_month: str):
         # find_and_prepare_excel_file은 파일이 없는 경우 이미 경고를 출력합니다.
         # 기본 데이터 소스가 누락된 경우 실행을 중지하기 위해 이 오류가 발생합니다.
         raise FileNotFoundError(
-            f"Login history Excel file starting with '{LOGIN_LOG_FILE_PREFIX_FILE_PREFIX}' not found in '{download_dir}'."
+            f"Login history Excel file starting with "
+            f"'{file_prefix}' not found in '{download_dir}'."
         )
 
-    # 10번째 열(인덱스 9)이 'IP'인지 확인합니다. 이는 예상 파일 형식에 기반한 온전성 검사입니다.
+    # 10번째 열(인덱스 9)이 'IP'인지 확인합니다.
+    # 이는 예상 파일 형식에 기반한 온전성 검사입니다.
     # 원본 주석: "5. 컬럼명 확인"
     expected_ip_col_index = 9
     if df.columns[expected_ip_col_index] != COL_IP:
         raise ValueError(
-            f"Expected '{COL_IP}' column at index {expected_ip_col_index}. Found: {df.columns[expected_ip_col_index]}"
+            f"Expected '{COL_IP}' column at index {expected_ip_col_index}. "
+            f"Found: {df.columns[expected_ip_col_index]}"
         )
 
     # 짧은 시간 내에 여러 IP에서 로그인하는 사용자를 필터링합니다.
@@ -122,10 +127,8 @@ def login_checker(download_dir: str, save_dir: str, prev_month: str):
             save_dir,
             f"{LOGIN_CHECK_REPORT_BASE}({LOGIN_REPORT_HOLIDAY_SUFFIX})_{prev_month}.xlsx",
         )
-        save_excel_with_autofit(filtered_holiday_weekend,
-                                save_path_holiday_weekend)
-        print(
-            f"Holiday/weekend login results saved to: {save_path_holiday_weekend}")
+        save_excel_with_autofit(filtered_holiday_weekend, save_path_holiday_weekend)
+        print(f"Holiday/weekend login results saved to: {save_path_holiday_weekend}")
     else:
         print("No records found for holiday/weekend login check.")
 
@@ -141,7 +144,8 @@ def _filter_ip_switch(df: pd.DataFrame) -> pd.DataFrame:
 
     반환 값:
         pd.DataFrame: IP 변경 알림을 트리거한 사용자 기록을 포함하는 DataFrame으로,
-                      직원 ID와 접근 시간으로 정렬됩니다. 해당 기록이 없으면 빈 DataFrame을 반환합니다.
+                      직원 ID와 접근 시간으로 정렬됩니다.
+                      해당 기록이 없으면 빈 DataFrame을 반환합니다.
 
     예외:
         ValueError: 입력 DataFrame `df`가 None인 경우.
@@ -181,7 +185,7 @@ def _filter_ip_switch(df: pd.DataFrame) -> pd.DataFrame:
                 )  # 이 창의 모든 기록을 추가합니다.
 
     if flagged_indices:
-        result_df = df_copy.loc[sorted(list(flagged_indices))]
+        result_df = df_copy.loc[sorted(flagged_indices)]
         return result_df.sort_values([COL_EMPLOYEE_ID_LOGIN, COL_ACCESS_TIME])
     else:
         return pd.DataFrame(
@@ -245,7 +249,7 @@ def _filter_holiday_and_weekend(df: pd.DataFrame) -> pd.DataFrame:
     years = df_copy[COL_ACCESS_TIME].dt.year.unique()
     # 해당 연도에 대한 대한민국 공휴일을 초기화합니다.
     # type: ignore # holidays.KR은 유효합니다.
-    kr_holidays = holidays.KR(years=years)
+    kr_holidays = holidays.KR(years=years)  # type: ignore [attr-defined]
 
     # 로그인 날짜가 주말인지 확인합니다 (토요일=5, 일요일=6).
     is_weekend = df_copy[COL_ACCESS_TIME].dt.weekday >= 5

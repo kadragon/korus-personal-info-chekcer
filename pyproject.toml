@@ -12,3 +12,17 @@ dependencies = [
     "python-dotenv>=1.1.0",
     "xlrd>=2.0.1",
 ]
+
+[project.optional-dependencies]
+dev = ["ruff", "mypy", "bandit", "pandas-stubs", "types-openpyxl", "types-python-dateutil", "pre-commit"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "C4", "SIM"]
+
+[tool.mypy]
+mypy_path = "src"
+explicit_package_bases = true
+namespace_packages = true

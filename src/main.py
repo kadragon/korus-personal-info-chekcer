@@ -12,12 +12,13 @@
 """
 
 import os
+
 from dotenv import load_dotenv
 
-from utils import get_prev_month_yyyymm, make_save_dir, zip_files_by_prefix
 from checkers.download_reason_checker import sayu_checker
 from checkers.login_checker import login_checker
 from checkers.personal_file_checker import personal_file_checker
+from utils import get_prev_month_yyyymm, make_save_dir, zip_files_by_prefix
 
 # .env 파일이 있는 경우 환경 변수를 로드합니다.
 # DOWNLOAD_DIR 및 SAVE_DIR을 하드코딩하지 않고 구성하는 데 유용합니다.
@@ -35,12 +36,14 @@ def main():
     """
     if not base_save_dir:
         print(
-            "Error: SAVE_DIR environment variable is not set. Please configure it in your .env file or environment."
+            "Error: SAVE_DIR environment variable is not set. "
+            "Please configure it in your .env file or environment."
         )
         return
     if not download_dir:
         print(
-            "Error: DOWNLOAD_DIR environment variable is not set. Please configure it in your .env file or environment."
+            "Error: DOWNLOAD_DIR environment variable is not set. "
+            "Please configure it in your .env file or environment."
         )
         return
 
@@ -64,8 +67,7 @@ def main():
         except FileNotFoundError as e:
             print(f"Error in Download Reason Checker: {e}")
         except Exception as e:
-            print(
-                f"An unexpected error occurred in Download Reason Checker: {e}")
+            print(f"An unexpected error occurred in Download Reason Checker: {e}")
 
         # 로그인 IP 패턴 확인 섹션입니다.
         # 원본 주석: "# 로그인 IP 검사"
@@ -82,20 +84,18 @@ def main():
         # 원본 주석: "# 개인정보 조회 기록 점검"
         print("\n### Running Personal File Checker ###")
         try:
-            personal_file_checker(
-                download_dir, reports_save_dir, prev_month_str)
+            personal_file_checker(download_dir, reports_save_dir, prev_month_str)
             print("Personal File Checker completed.")
         except FileNotFoundError as e:
             print(f"Error in Personal File Checker: {e}")
         except Exception as e:
-            print(
-                f"An unexpected error occurred in Personal File Checker: {e}")
+            print(f"An unexpected error occurred in Personal File Checker: {e}")
 
         print("\nAll checks finished.")
 
         # zip_files_by_prefix
         try:
-            zip_files_by_prefix(reports_save_dir, ['[붙임2', '[붙임3', '[붙임4'])
+            zip_files_by_prefix(reports_save_dir, ["[붙임2", "[붙임3", "[붙임4"])
         except Exception as e:
             print(f"Error during zipping: {e}")
     else:

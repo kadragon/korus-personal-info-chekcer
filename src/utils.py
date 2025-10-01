@@ -1,11 +1,12 @@
 """
 이 모듈은 날짜 조작, 디렉토리 생성, 엑셀 파일 처리(열 너비 자동 맞춤 저장),
-처리할 특정 엑셀 파일 검색 및 준비와 같은 일반적인 작업을 위한 유틸리티 함수를 제공합니다.
+처리할 특정 엑셀 파일 검색 및 준비와 같은 일반적인 작업을 위한
+유틸리티 함수를 제공합니다.
 """
 
 import os
-from datetime import datetime
 import zipfile
+from datetime import datetime
 
 import openpyxl
 import pandas as pd
@@ -67,6 +68,11 @@ def save_excel_with_autofit(df: pd.DataFrame, path: str):
     wb = openpyxl.load_workbook(path)
     ws = wb.active  # 활성 워크시트를 가져옵니다.
 
+    if ws is None:
+        wb.close()
+        print("Warning: No active worksheet found. Cannot autofit columns.")
+        return
+
     # 자동 맞춤을 위한 최대 길이를 계산하기 위해 열을 반복합니다.
     # type: ignore # openpyxl.worksheet.worksheet.Worksheet.columns는 제너레이터입니다.
     for idx, column_cells in enumerate(ws.columns):  # type: ignore
@@ -99,18 +105,19 @@ def find_and_prepare_excel_file(
     prev_month: str,
 ) -> tuple[pd.DataFrame | None, str | None]:
     if not download_dir:
-        raise EnvironmentError(
-            "Download directory ('download_dir') is not specified.")
+        raise EnvironmentError("Download directory ('download_dir') is not specified.")
 
     excel_files = [
         f
         for f in os.listdir(download_dir)
-        if f.startswith(file_prefix) and f.lower().endswith(('.xls', '.xlsx'))
+        if f.startswith(file_prefix) and f.lower().endswith((".xls", ".xlsx"))
     ]
 
     if not excel_files:
         print(
-            f"Warning: No Excel file starting with '{file_prefix}' found in '{download_dir}'.")
+            f"Warning: No Excel file starting with '{file_prefix}' "
+            f"found in '{download_dir}'."
+        )
         return None, None
 
     os.makedirs(save_dir, exist_ok=True)
@@ -119,7 +126,7 @@ def find_and_prepare_excel_file(
     for file_name in excel_files:
         file_path = os.path.join(download_dir, file_name)
         # 파일 확장자에 따라 변환 또는 바로 읽기
-        if file_path.lower().endswith('.xlsx'):
+        if file_path.lower().endswith(".xlsx"):
             df = pd.read_excel(file_path)
         else:
             df = pd.read_excel(file_path, engine="xlrd")
@@ -143,7 +150,7 @@ def zip_files_by_prefix(target_dir: str, prefix_list: list[str]):
     """
     파일명에서 '_' 앞부분(붙임N ... )을 zip 이름으로 하여 압축 생성
     """
-    files = [f for f in os.listdir(target_dir) if f.endswith('.xlsx')]
+    files = [f for f in os.listdir(target_dir) if f.endswith(".xlsx")]
 
     # 접두사별로 그룹핑
     for prefix in prefix_list:
@@ -153,14 +160,14 @@ def zip_files_by_prefix(target_dir: str, prefix_list: list[str]):
             continue
 
         # zip 파일명은 첫 파일의 '_' 앞까지
-        group_name = matched[0].split('_')[0].split(
-            '(')[0]  # 예: [붙임3] 개인정보 접속기록 조회
+        group_name = (
+            matched[0].split("_")[0].split("(")[0]
+        )  # 예: [붙임3] 개인정보 접속기록 조회
         zip_name = f"{group_name}.zip"
         zip_path = os.path.join(target_dir, zip_name)
 
-        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
             for filename in matched:
-                zipf.write(os.path.join(target_dir, filename),
-                           arcname=filename)
+                zipf.write(os.path.join(target_dir, filename), arcname=filename)
 
         print(f"✅ {zip_name} 생성 ({len(matched)}개 파일 포함)")
