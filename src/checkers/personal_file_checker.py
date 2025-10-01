@@ -19,10 +19,10 @@ from utils import find_and_prepare_excel_file, save_excel_with_autofit
 
 # personal_file_checker.py 상수
 PERSONAL_INFO_ACCESS_LOG_PREFIX = (
-    "개인정보 접속기록 조회_"  # 개인 정보 접근 로그 파일의 접두사
+    "개인정보 접속 기록_"  # 개인 정보 접근 로그 파일의 접두사
 )
-PERSONAL_INFO_REPORT_BASE = "[붙임3] 개인정보 접속기록 조회"
-MERGED_PERSONAL_INFO_ACCESS_FILENAME_TEMPLATE = "[붙임3] 개인정보 접속기록 조회_{}.xlsx"
+PERSONAL_INFO_REPORT_BASE = "[붙임3] 개인정보 접속 기록"
+MERGED_PERSONAL_INFO_ACCESS_FILENAME_TEMPLATE = "[붙임3] 개인정보 접속 기록_{}.xlsx"
 PERSONAL_INFO_ACCESS_MASTER_SUFFIX = (
     "인사마스터"  # 보고서 접미사: '인사마스터'(HR 마스터) 프로그램 접근
 )
@@ -106,7 +106,8 @@ def personal_file_checker(download_dir: str, save_dir: str, prev_month: str):
 
     # 필터 1: '인사마스터'(HR 마스터) 접근, 본인 접근 제외.
     # 원본 주석: "인사마스터에서 조회한 기록 (본인 제외)"
-    filtered_master_access = _filter_by_job_master_exclude_detail_id(df_to_analyze)
+    filtered_master_access = _filter_by_job_master_exclude_detail_id(
+        df_to_analyze)
     if not filtered_master_access.empty:
         # MERGED...TEMPLATE을 기반으로 파일 이름을 구성한 다음
         # 특정 접미사를 추가합니다.
@@ -120,7 +121,8 @@ def personal_file_checker(download_dir: str, save_dir: str, prev_month: str):
             f"{base_report_name_for_master}({PERSONAL_INFO_ACCESS_MASTER_SUFFIX}).xlsx",
         )
         save_excel_with_autofit(filtered_master_access, save_path_master)
-        print(f"HR Master access (excluding self) results saved to: {save_path_master}")
+        print(
+            f"HR Master access (excluding self) results saved to: {save_path_master}")
     else:
         print("No records found for HR Master access (excluding self) check.")
 
@@ -208,25 +210,24 @@ def _filter_by_job_master_exclude_detail_id(df: pd.DataFrame) -> pd.DataFrame:
                 f"filtering."
             )
 
-    # '인사마스터'(HR 마스터) 프로그램 접근을 필터링합니다.
-    # '인사마스터'는 특정 프로그램 이름입니다.
-    # 원본 주석: "2. '프로그램명' == '인사마스터' 필터"
-    filtered_df = df[df[COL_PROGRAM_NAME] == "인사마스터"]
+    # '인사마스터' 프로그램 접근 기록 중, 본인 조회가 아닌 경우만 필터링합니다.
+    # 조건 1: '프로그램명'이 '인사마스터'인 기록만 선택합니다.
+    hr_master_df = df[df[COL_PROGRAM_NAME] == "인사마스터"].copy()
 
-    # 직원의 ID가 상세 내용(본인 접근) 내에서 발견되는 기록을 제외합니다.
-    # 원본 주석: "3. 교번이 상세내용에 포함되어 있지 않은 것만 남기기"
-    # 이 람다 함수는 사용자 ID의 문자열 표현이 상세 내용 문자열의 일부인지 확인합니다.
-    # 강력한 비교를 위해 둘 다 문자열로 처리되도록 합니다.
-    filtered_df = filtered_df[
-        ~filtered_df.apply(
-            lambda row: str(row[employee_id_col_to_use])
-            in str(row[COL_DETAIL_CONTENT]),
-            axis=1,
+    # 조건 2: '상세내용'에 자신의 '교번'이 포함되어 있지 않은 기록만 남깁니다.
+    #         (즉, 타인 조회 기록만 필터링)
+    # 각 행을 순회하며 '교번'과 '상세내용'을 비교해야 하므로 apply 함수를 사용합니다.
+    is_not_self_access = [
+        str(emp_id) not in str(detail)
+        for emp_id, detail in zip(
+            hr_master_df[employee_id_col_to_use],
+            hr_master_df[COL_DETAIL_CONTENT],
+            strict=True,
         )
     ]
+    filtered_df = hr_master_df[is_not_self_access]
 
     # 결과를 정렬합니다.
-    # 원본 주석: "4. 교번, 접속일시 정렬"
     return filtered_df.sort_values([employee_id_col_to_use, COL_ACCESS_TIME])
 
 
@@ -274,7 +275,8 @@ def _extract_and_save_by_job(
     # 특정 작업 유형과 일치하는 기록을 필터링합니다.
     job_specific_df = df[df[job_column_name] == job]
     # 직원 ID별로 그룹화하고 작업 발생 횟수를 계산합니다.
-    job_counts_per_user = job_specific_df.groupby(employee_id_col_to_use).size()
+    job_counts_per_user = job_specific_df.groupby(
+        employee_id_col_to_use).size()
     # 이 작업에 대한 임계값을 충족하거나 초과하는 사용자를 식별합니다.
     target_user_ids = job_counts_per_user[
         job_counts_per_user >= threshold
@@ -312,7 +314,8 @@ def _extract_and_save_by_job(
                 # 단순 잘라내기를 사용합니다.
                 sheet_name = sheet_name[:SHEET_NAME_MAX_CHARS]
 
-            user_all_records_df.to_excel(writer, sheet_name=sheet_name, index=False)
+            user_all_records_df.to_excel(
+                writer, sheet_name=sheet_name, index=False)
             # 자동 맞춤 참고: 현재 `save_excel_with_autofit` 유틸리티는
             # DataFrame을 새 파일에 저장합니다. 그런 다음 자동 맞춤합니다.
             # ExcelWriter 컨텍스트 내의 시트에 직접 적용하려면 유틸리티를 수정하거나
