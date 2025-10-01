@@ -168,7 +168,10 @@ def _filter_by_job_master_exclude_detail_id(df: pd.DataFrame) -> pd.DataFrame:
         employee_id_col_to_use = COL_EMPLOYEE_ID_LOGIN
     elif COL_EMPLOYEE_ID not in df.columns:
         raise ValueError(
-            f"'{COL_EMPLOYEE_ID}' 또는 '{COL_EMPLOYEE_ID_LOGIN}' 컬럼을 찾을 수 없습니다."
+            (
+                f"'{COL_EMPLOYEE_ID}' 또는 "
+                f"'{COL_EMPLOYEE_ID_LOGIN}' 컬럼을 찾을 수 없습니다."
+            )
         )
 
     required_cols = [
@@ -230,7 +233,10 @@ def _extract_and_save_by_job(
         employee_id_col_to_use = COL_EMPLOYEE_ID_LOGIN
     elif COL_EMPLOYEE_ID not in df.columns:
         raise ValueError(
-            f"'{COL_EMPLOYEE_ID}' 또는 '{COL_EMPLOYEE_ID_LOGIN}' 컬럼을 찾을 수 없습니다."
+            (
+                f"'{COL_EMPLOYEE_ID}' 또는 "
+                f"'{COL_EMPLOYEE_ID_LOGIN}' 컬럼을 찾을 수 없습니다."
+            )
         )
 
     required_cols_check = [

@@ -90,7 +90,10 @@ def login_checker(download_dir: str, save_dir: str, prev_month: str) -> int:
         {
             "function": _filter_ip_switch,
             "suffix": LOGIN_REPORT_IP_SWITCH_SUFFIX,
-            "description": f"{LOGIN_IP_SWITCH_WINDOW_HOURS}시간 내 {LOGIN_IP_SWITCH_MIN_IPS}개 이상 IP 사용",
+            "description": (
+                f"{LOGIN_IP_SWITCH_WINDOW_HOURS}시간 내 "
+                f"{LOGIN_IP_SWITCH_MIN_IPS}개 이상 IP 사용"
+            ),
         },
         {
             "function": _filter_off_hours,
@@ -113,7 +116,7 @@ def login_checker(download_dir: str, save_dir: str, prev_month: str) -> int:
             df=df,
             check_func=check["function"],
             save_path=save_path,
-            result_description=check["description"],
+            result_description=str(check["description"]),
         )
 
     return len(df)

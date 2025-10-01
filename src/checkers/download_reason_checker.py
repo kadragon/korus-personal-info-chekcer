@@ -123,7 +123,7 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str) -> int:
             df=df,
             check_func=check["function"],
             save_path=save_path,
-            result_description=check["description"],
+            result_description=str(check["description"]),
         )
 
     return len(df)
@@ -151,8 +151,11 @@ def _check_download_sayu(df: pd.DataFrame) -> pd.DataFrame:
     expected_reason_col_index = 4
     if df.columns[expected_reason_col_index] != COL_DOWNLOAD_REASON:
         raise ValueError(
-            f"'{COL_DOWNLOAD_REASON}' 컬럼이 {expected_reason_col_index} 위치에 없습니다. "
-            f"실제 컬럼: {df.columns[expected_reason_col_index]}"
+            (
+                f"'{COL_DOWNLOAD_REASON}' 컬럼이 "
+                f"{expected_reason_col_index} 위치에 없습니다. "
+                f"실제 컬럼: {df.columns[expected_reason_col_index]}"
+            )
         )
 
     # 다운로드 사유의 고유 문자 수에 대한 필터를 적용합니다.
@@ -183,8 +186,11 @@ def _filter_high_download_users(df: pd.DataFrame) -> pd.DataFrame:
     expected_count_col_index = 5
     if df.columns[expected_count_col_index] != COL_DOWNLOAD_COUNT:
         raise ValueError(
-            f"'{COL_DOWNLOAD_COUNT}' 컬럼이 {expected_count_col_index} 위치에 없습니다. "
-            f"실제 컬럼: {df.columns[expected_count_col_index]}"
+            (
+                f"'{COL_DOWNLOAD_COUNT}' 컬럼이 "
+                f"{expected_count_col_index} 위치에 없습니다. "
+                f"실제 컬럼: {df.columns[expected_count_col_index]}"
+            )
         )
 
     # 직원 ID별로 그룹화하고 다운로드 수를 합산합니다.

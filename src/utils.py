@@ -144,7 +144,10 @@ def find_and_prepare_excel_file(
     )
     merged_df.to_excel(destination_save_path, index=False)
     print_info(
-        f"모든 파일을 합쳐서 '{os.path.basename(destination_save_path)}'(으)로 저장했습니다."
+        (
+            f"모든 파일을 합쳐서 "
+            f"'{os.path.basename(destination_save_path)}'(으)로 저장했습니다."
+        )
     )
 
     return merged_df, destination_save_path
@@ -184,9 +187,13 @@ def run_and_save_check(
 
     매개변수:
         df (pd.DataFrame): 검사를 수행할 입력 DataFrame입니다.
-        check_func (function): DataFrame을 인자로 받아 필터링된 DataFrame을 반환하는 함수입니다.
+        check_func (function): (
+            DataFrame을 인자로 받아 필터링된 DataFrame을 반환하는 함수입니다.
+        )
         save_path (str): 결과 Excel 파일이 저장될 경로입니다.
-        result_description (str): 결과가 발견되었거나 발견되지 않았을 때 출력할 메시지에 사용될 설명입니다.
+        result_description (str): (
+            결과가 발견되었거나 발견되지 않았을 때 출력할 메시지에 사용될 설명입니다.
+        )
     """
     filtered_df = check_func(df)
     if not filtered_df.empty:
