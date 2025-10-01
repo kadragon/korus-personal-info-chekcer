@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["ruff", "mypy", "pandas-stubs", "types-openpyxl", "types-python-dateutil", "pre-commit"]
+dev = ["ruff", "mypy", "bandit", "pandas-stubs", "types-openpyxl", "types-python-dateutil", "pre-commit"]
 
 [tool.ruff]
 line-length = 88
