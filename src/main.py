@@ -13,10 +13,11 @@
 
 import os
 
+from dotenv import load_dotenv
+
 from checkers.download_reason_checker import sayu_checker
 from checkers.login_checker import login_checker
 from checkers.personal_file_checker import personal_file_checker
-from dotenv import load_dotenv
 from utils import get_prev_month_yyyymm, make_save_dir, zip_files_by_prefix
 
 # .env 파일이 있는 경우 환경 변수를 로드합니다.

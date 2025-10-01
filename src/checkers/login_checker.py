@@ -14,6 +14,7 @@ from datetime import datetime
 
 import holidays
 import pandas as pd
+
 from utils import find_and_prepare_excel_file, save_excel_with_autofit
 
 # Constants for login_checker.py
@@ -184,7 +185,7 @@ def _filter_ip_switch(df: pd.DataFrame) -> pd.DataFrame:
                 )  # 이 창의 모든 기록을 추가합니다.
 
     if flagged_indices:
-        result_df = df_copy.loc[sorted(list(flagged_indices))]
+        result_df = df_copy.loc[sorted(flagged_indices)]
         return result_df.sort_values([COL_EMPLOYEE_ID_LOGIN, COL_ACCESS_TIME])
     else:
         return pd.DataFrame(

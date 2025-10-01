@@ -16,6 +16,7 @@ from typing import cast
 
 import holidays
 import pandas as pd
+
 from utils import find_and_prepare_excel_file, save_excel_with_autofit
 
 # download_reason_checker.py 상수
@@ -101,8 +102,7 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str):
         )
         save_excel_with_autofit(filtered_invalid_reason, save_path_invalid_reason)
         print(
-            f"Results for invalid download reasons saved to: "
-            f"{save_path_invalid_reason}"
+            f"Results for invalid download reasons saved to: {save_path_invalid_reason}"
         )
     else:
         print("No records found for invalid download reason check.")
@@ -286,7 +286,7 @@ def _filter_high_freq_download(df: pd.DataFrame) -> pd.DataFrame:
 
     if flagged_indices:
         result_df = df_copy.loc[
-            sorted(list(flagged_indices))
+            sorted(flagged_indices)
         ]  # 원본 인덱스를 사용하여 선택합니다.
         return result_df.sort_values([COL_EMPLOYEE_ID, COL_ACCESS_TIME])
     else:

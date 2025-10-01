@@ -20,7 +20,7 @@ dev = ["ruff", "mypy", "pandas-stubs", "types-openpyxl", "types-python-dateutil"
 line-length = 88
 
 [tool.ruff.lint]
-select = ["E", "F", "I"]
+select = ["E", "F", "I", "B", "C4", "SIM"]
 
 [tool.mypy]
 mypy_path = "src"
