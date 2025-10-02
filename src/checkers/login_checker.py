@@ -60,12 +60,8 @@ def login_checker(download_dir: str, save_dir: str, prev_month: str) -> int:
     if df is None:
         return 0
 
-    expected_ip_col_index = 9
-    if df.columns[expected_ip_col_index] != cfg.COL_IP:
-        raise ValueError(
-            f"'{cfg.COL_IP}' 컬럼이 {expected_ip_col_index} 위치에 없습니다. "
-            f"실제 컬럼: {df.columns[expected_ip_col_index]}"
-        )
+    if cfg.COL_IP not in df.columns:
+        raise ValueError(f"'{cfg.COL_IP}' 컬럼을 찾을 수 없습니다.")
 
     checks_to_run = [
         {

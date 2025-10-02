@@ -146,15 +146,8 @@ def _check_download_sayu(df: pd.DataFrame) -> pd.DataFrame:
         ValueError: 예상되는 다운로드 사유 열(`COL_DOWNLOAD_REASON`)이
                     5번째 위치(인덱스 4)에 없는 경우.
     """
-    expected_reason_col_index = 4
-    if df.columns[expected_reason_col_index] != cfg.COL_DOWNLOAD_REASON:
-        raise ValueError(
-            (
-                f"'{cfg.COL_DOWNLOAD_REASON}' 컬럼이 "
-                f"{expected_reason_col_index} 위치에 없습니다. "
-                f"실제 컬럼: {df.columns[expected_reason_col_index]}"
-            )
-        )
+    if cfg.COL_DOWNLOAD_REASON not in df.columns:
+        raise ValueError(f"'{cfg.COL_DOWNLOAD_REASON}' 컬럼을 찾을 수 없습니다.")
 
     # 다운로드 사유의 고유 문자 수에 대한 필터를 적용합니다.
     # 원본 주석: "5. 고유 문자 개수 5개 이하인 row 필터링"
@@ -177,18 +170,10 @@ def _filter_high_download_users(df: pd.DataFrame) -> pd.DataFrame:
                       직원 ID와 접근 시간으로 정렬된 DataFrame입니다.
 
     예외:
-        ValueError: 예상되는 다운로드 수 열(`COL_DOWNLOAD_COUNT`)이
-                    6번째 위치(인덱스 5)에 없는 경우.
+        ValueError: `COL_DOWNLOAD_COUNT` 컬럼이 없는 경우.
     """
-    expected_count_col_index = 5
-    if df.columns[expected_count_col_index] != cfg.COL_DOWNLOAD_COUNT:
-        raise ValueError(
-            (
-                f"'{cfg.COL_DOWNLOAD_COUNT}' 컬럼이 "
-                f"{expected_count_col_index} 위치에 없습니다. "
-                f"실제 컬럼: {df.columns[expected_count_col_index]}"
-            )
-        )
+    if cfg.COL_DOWNLOAD_COUNT not in df.columns:
+        raise ValueError(f"'{cfg.COL_DOWNLOAD_COUNT}' 컬럼을 찾을 수 없습니다.")
 
     # 직원 ID별로 그룹화하고 다운로드 수를 합산합니다.
     download_sum_per_user = df.groupby(cfg.COL_EMPLOYEE_ID)[
