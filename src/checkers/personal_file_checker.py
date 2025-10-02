@@ -15,41 +15,9 @@ from datetime import datetime
 
 import pandas as pd
 
+import config as cfg
 from display import print_checker_header, print_result
 from utils import find_and_prepare_excel_file, run_and_save_check
-
-# personal_file_checker.py 상수
-PERSONAL_INFO_ACCESS_LOG_PREFIX = (
-    "개인정보 접속기록 조회_"  # 개인 정보 접근 로그 파일의 접두사
-)
-PERSONAL_INFO_REPORT_BASE = "[붙임3] 개인정보 접속 기록"
-MERGED_PERSONAL_INFO_ACCESS_FILENAME_TEMPLATE = "[붙임3] 개인정보 접속 기록_{}.xlsx"
-PERSONAL_INFO_ACCESS_MASTER_SUFFIX = (
-    "인사마스터"  # 보고서 접미사: '인사마스터'(HR 마스터) 프로그램 접근
-)
-PERSONAL_INFO_ACCESS_HIGH_VOLUME_VIEWS_SUFFIX = (
-    "1000건이상조회"  # 보고서 접미사: VIEW_THRESHOLD보다 많은 기록을 조회한 사용자
-)
-PERSONAL_INFO_ACCESS_HIGH_VOLUME_SAVES_SUFFIX = (
-    "100건이상저장"  # 보고서 접미사: SAVE_THRESHOLD보다 많은 기록을 저장한 사용자
-)
-COL_ACCESS_TIME = "접속일시"  # 접근 타임스탬프 (예: "YYYY-MM-DD HH:MM:SS")
-COL_EMPLOYEE_ID = "교직원ID"  # 표준화된 직원 ID 컬럼명
-COL_PROGRAM_NAME = "프로그램명"  # 사용자가 접근한 프로그램/시스템의 이름
-COL_DETAIL_CONTENT = "상세내용"  # 접근한 활동 또는 내용에 대한 상세 설명
-COL_JOB_PERFORMANCE = "수행업무"  # 사용자가 수행한 작업/업무 (예: '조회', '저장')
-COL_EMPLOYEE_NAME = "성명"  # 직원 이름
-VIEW_THRESHOLD = (
-    1000  # personal_file_checker용: 이 수보다 많은 기록을 조회한 사용자를 표시합니다.
-)
-SAVE_THRESHOLD = (
-    100  # personal_file_checker용: 이 수보다 많은 기록을 저장한 사용자를 표시합니다.
-)
-SHEET_NAME_MAX_CHARS = 31  # Excel 시트 이름에 허용되는 최대 문자 수입니다.
-EXCEL_EXTENSIONS = (
-    ".xlsx",
-    ".xls",
-)  # 입력 파일에 지원되는 Excel 파일 확장자 튜플입니다.
 
 
 def personal_file_checker(download_dir: str, save_dir: str, prev_month: str) -> int:
@@ -78,17 +46,17 @@ def personal_file_checker(download_dir: str, save_dir: str, prev_month: str) -> 
     예외:
         ValueError: 유효한 Excel 파일을 병합할 수 없거나 필수 열이 누락된 경우.
     """
-    print_checker_header(PERSONAL_INFO_REPORT_BASE)
+    print_checker_header(cfg.PERSONAL_INFO_REPORT_BASE)
 
     file_prefix = (
-        f"{PERSONAL_INFO_ACCESS_LOG_PREFIX}{datetime.today().strftime('%Y%m')}"
+        f"{cfg.PERSONAL_INFO_ACCESS_LOG_PREFIX}{datetime.today().strftime('%Y%m')}"
     )
 
     df, _ = find_and_prepare_excel_file(
         download_dir,
         file_prefix,
         save_dir,
-        PERSONAL_INFO_REPORT_BASE,
+        cfg.PERSONAL_INFO_REPORT_BASE,
         prev_month,
     )
 
@@ -98,12 +66,12 @@ def personal_file_checker(download_dir: str, save_dir: str, prev_month: str) -> 
     df_to_analyze = df
 
     # 필터 1: '인사마스터'(HR 마스터) 접근, 본인 접근 제외.
-    base_report_name = MERGED_PERSONAL_INFO_ACCESS_FILENAME_TEMPLATE.split(".")[
+    base_report_name = cfg.MERGED_PERSONAL_INFO_ACCESS_FILENAME_TEMPLATE.split(".")[
         0
     ].format(prev_month)
     save_path_master = os.path.join(
         save_dir,
-        f"{base_report_name}({PERSONAL_INFO_ACCESS_MASTER_SUFFIX}).xlsx",
+        f"{base_report_name}({cfg.PERSONAL_INFO_ACCESS_MASTER_SUFFIX}).xlsx",
     )
     run_and_save_check(
         df=df_to_analyze,
@@ -115,27 +83,27 @@ def personal_file_checker(download_dir: str, save_dir: str, prev_month: str) -> 
     # 필터 2: 대량의 기록을 조회하는 사용자.
     save_path_high_views = os.path.join(
         save_dir,
-        f"{base_report_name}({PERSONAL_INFO_ACCESS_HIGH_VOLUME_VIEWS_SUFFIX}).xlsx",
+        f"{base_report_name}({cfg.PERSONAL_INFO_ACCESS_HIGH_VOLUME_VIEWS_SUFFIX}).xlsx",
     )
     _extract_and_save_by_job(
         df_to_analyze,
         save_path_high_views,
         job="조회",
-        threshold=VIEW_THRESHOLD,
-        job_column_name=COL_JOB_PERFORMANCE,
+        threshold=cfg.VIEW_THRESHOLD,
+        job_column_name=cfg.COL_JOB_PERFORMANCE,
     )
 
     # 필터 3: 대량의 기록을 저장하는 사용자.
     save_path_high_saves = os.path.join(
         save_dir,
-        f"{base_report_name}({PERSONAL_INFO_ACCESS_HIGH_VOLUME_SAVES_SUFFIX}).xlsx",
+        f"{base_report_name}({cfg.PERSONAL_INFO_ACCESS_HIGH_VOLUME_SAVES_SUFFIX}).xlsx",
     )
     _extract_and_save_by_job(
         df_to_analyze,
         save_path_high_saves,
         job="저장",
-        threshold=SAVE_THRESHOLD,
-        job_column_name=COL_JOB_PERFORMANCE,
+        threshold=cfg.SAVE_THRESHOLD,
+        job_column_name=cfg.COL_JOB_PERFORMANCE,
     )
 
     return len(df)
@@ -149,7 +117,7 @@ def _filter_by_job_master_exclude_detail_id(df: pd.DataFrame) -> pd.DataFrame:
     매개변수:
         df (pd.DataFrame): 개인 정보 접근 로그를 포함하는 DataFrame입니다.
                            예상 열: `COL_PROGRAM_NAME`,
-                           `COL_EMPLOYEE_ID` (또는 `COL_EMPLOYEE_ID_LOGIN`),
+                           `COL_EMPLOYEE_ID`,
                            `COL_ACCESS_TIME`, `COL_DETAIL_CONTENT`.
 
     반환 값:
@@ -159,14 +127,13 @@ def _filter_by_job_master_exclude_detail_id(df: pd.DataFrame) -> pd.DataFrame:
     예외:
         ValueError: 필터링에 필수적인 열이 누락된 경우.
     """
-    # 사용할 직원 ID 열을 표준화된 "직원ID"로 사용합니다.
-    employee_id_col_to_use = COL_EMPLOYEE_ID
+    employee_id_col_to_use = cfg.COL_EMPLOYEE_ID
 
     required_cols = [
-        COL_PROGRAM_NAME,
+        cfg.COL_PROGRAM_NAME,
         employee_id_col_to_use,
-        COL_ACCESS_TIME,
-        COL_DETAIL_CONTENT,
+        cfg.COL_ACCESS_TIME,
+        cfg.COL_DETAIL_CONTENT,
     ]
     for col in required_cols:
         if col not in df.columns:
@@ -176,7 +143,7 @@ def _filter_by_job_master_exclude_detail_id(df: pd.DataFrame) -> pd.DataFrame:
 
     # '인사마스터' 프로그램 접근 기록 중, 본인 조회가 아닌 경우만 필터링합니다.
     # 조건 1: '프로그램명'이 '인사마스터'인 기록만 선택합니다.
-    hr_master_df = df[df[COL_PROGRAM_NAME] == "인사마스터"].copy()
+    hr_master_df = df[df[cfg.COL_PROGRAM_NAME] == "인사마스터"].copy()
 
     # 조건 2: '상세내용'에 자신의 '직원ID'가 포함되어 있지 않은 기록만 남깁니다.
     #         (즉, 타인 조회 기록만 필터링)
@@ -185,14 +152,14 @@ def _filter_by_job_master_exclude_detail_id(df: pd.DataFrame) -> pd.DataFrame:
         str(emp_id) not in str(detail)
         for emp_id, detail in zip(
             hr_master_df[employee_id_col_to_use],
-            hr_master_df[COL_DETAIL_CONTENT],
+            hr_master_df[cfg.COL_DETAIL_CONTENT],
             strict=True,
         )
     ]
     filtered_df = hr_master_df[is_not_self_access]
 
     # 결과를 정렬합니다.
-    return filtered_df.sort_values([employee_id_col_to_use, COL_ACCESS_TIME])
+    return filtered_df.sort_values([employee_id_col_to_use, cfg.COL_ACCESS_TIME])
 
 
 def _extract_and_save_by_job(
@@ -212,15 +179,14 @@ def _extract_and_save_by_job(
                                (예: `COL_JOB_PERFORMANCE`).
 
     예외:
-        ValueError: 필수 열(`COL_EMPLOYEE_ID` 또는 대체 열, `COL_EMPLOYEE_NAME`,
+        ValueError: 필수 열(`COL_EMPLOYEE_ID`, `COL_EMPLOYEE_NAME`,
                       `job_column_name`)이 누락된 경우.
     """
-    # 사용할 직원 ID 열을 표준화된 "직원ID"로 사용합니다.
-    employee_id_col_to_use = COL_EMPLOYEE_ID
+    employee_id_col_to_use = cfg.COL_EMPLOYEE_ID
 
     required_cols_check = [
         employee_id_col_to_use,
-        COL_EMPLOYEE_NAME,
+        cfg.COL_EMPLOYEE_NAME,
         job_column_name,
     ]
     for col in required_cols_check:
@@ -245,13 +211,13 @@ def _extract_and_save_by_job(
             user_name = ""
             if (
                 not user_all_records_df.empty
-                and COL_EMPLOYEE_NAME in user_all_records_df.columns
+                and cfg.COL_EMPLOYEE_NAME in user_all_records_df.columns
             ):
-                user_name = user_all_records_df[COL_EMPLOYEE_NAME].iloc[0]
+                user_name = user_all_records_df[cfg.COL_EMPLOYEE_NAME].iloc[0]
 
             sheet_name = f"{employee_id}_{user_name}"
-            if len(sheet_name) > SHEET_NAME_MAX_CHARS:
-                sheet_name = sheet_name[:SHEET_NAME_MAX_CHARS]
+            if len(sheet_name) > cfg.SHEET_NAME_MAX_CHARS:
+                sheet_name = sheet_name[: cfg.SHEET_NAME_MAX_CHARS]
 
             user_all_records_df.to_excel(writer, sheet_name=sheet_name, index=False)
 

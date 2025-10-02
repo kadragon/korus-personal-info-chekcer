@@ -16,28 +16,13 @@ from typing import cast
 
 import pandas as pd
 
+import config as cfg
 from display import print_checker_header
 from utils import (
     filter_by_time_conditions,
     find_and_prepare_excel_file,
     run_and_save_check,
 )
-
-# download_reason_checker.py 상수
-PERSONAL_INFO_DOWNLOAD_REASON_PREFIX = "개인정보 다운로드 사유 조회_"
-DOWNLOAD_REASON_REPORT_BASE = "[붙임4] 개인정보 다운로드 사유"
-DOWNLOAD_REASON_INVALID_REASON_SUFFIX = "사유이상"
-DOWNLOAD_REASON_HIGH_DOWNLOAD_COUNT_SUFFIX = "100건 초과"
-DOWNLOAD_REASON_HIGH_FREQUENCY_SUFFIX = "1시간20건초과"
-DOWNLOAD_REASON_OFF_HOURS_SUFFIX = "업무시간외"
-COL_ACCESS_TIME = "접속일시"
-COL_EMPLOYEE_ID = "교직원ID"  # 표준화된 직원 ID 컬럼명
-COL_DOWNLOAD_REASON = "다운로드사유"
-COL_DOWNLOAD_COUNT = "다운로드데이터수(건)"
-DOWNLOAD_COUNT_THRESHOLD = 100
-DOWNLOAD_FREQUENCY_THRESHOLD = 20
-DOWNLOAD_OFF_HOURS_START = 23
-DOWNLOAD_OFF_HOURS_END = 8
 
 
 def _unique_char_count_below_5(text_input) -> bool:
@@ -77,17 +62,17 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str) -> int:
     반환 값:
         int: 처리된 원본 데이터의 행 수입니다. 파일을 찾을 수 없으면 0입니다.
     """
-    print_checker_header(DOWNLOAD_REASON_REPORT_BASE)
+    print_checker_header(cfg.DOWNLOAD_REASON_REPORT_BASE)
 
     file_prefix = (
-        f"{PERSONAL_INFO_DOWNLOAD_REASON_PREFIX}{datetime.today().strftime('%Y%m')}"
+        f"{cfg.PERSONAL_INFO_DOWNLOAD_REASON_PREFIX}{datetime.today().strftime('%Y%m')}"
     )
 
     df, _ = find_and_prepare_excel_file(
         download_dir,
         file_prefix,
         save_dir,
-        DOWNLOAD_REASON_REPORT_BASE,
+        cfg.DOWNLOAD_REASON_REPORT_BASE,
         prev_month,
     )
 
@@ -97,30 +82,32 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str) -> int:
     checks_to_run = [
         {
             "function": _check_download_sayu,
-            "suffix": DOWNLOAD_REASON_INVALID_REASON_SUFFIX,
+            "suffix": cfg.DOWNLOAD_REASON_INVALID_REASON_SUFFIX,
             "description": "다운로드 사유 비정상",
         },
         {
             "function": _filter_high_download_users,
-            "suffix": DOWNLOAD_REASON_HIGH_DOWNLOAD_COUNT_SUFFIX,
-            "description": f"다운로드 {DOWNLOAD_COUNT_THRESHOLD}건 초과",
+            "suffix": cfg.DOWNLOAD_REASON_HIGH_DOWNLOAD_COUNT_SUFFIX,
+            "description": f"다운로드 {cfg.DOWNLOAD_COUNT_THRESHOLD}건 초과",
         },
         {
             "function": _filter_high_freq_download,
-            "suffix": DOWNLOAD_REASON_HIGH_FREQUENCY_SUFFIX,
-            "description": f"1시간 내 {DOWNLOAD_FREQUENCY_THRESHOLD}건 이상 다운로드",
+            "suffix": cfg.DOWNLOAD_REASON_HIGH_FREQUENCY_SUFFIX,
+            "description": (
+                f"1시간 내 {cfg.DOWNLOAD_FREQUENCY_THRESHOLD}건 이상 다운로드"
+            ),
         },
         {
             "function": lambda df: filter_by_time_conditions(
                 df,
-                time_col=COL_ACCESS_TIME,
-                employee_id_col=COL_EMPLOYEE_ID,
+                time_col=cfg.COL_ACCESS_TIME,
+                employee_id_col=cfg.COL_EMPLOYEE_ID,
                 check_off_hours=True,
                 check_holidays_weekends=True,
-                off_hours_start=DOWNLOAD_OFF_HOURS_START,
-                off_hours_end=DOWNLOAD_OFF_HOURS_END,
+                off_hours_start=cfg.DOWNLOAD_OFF_HOURS_START,
+                off_hours_end=cfg.DOWNLOAD_OFF_HOURS_END,
             ),
-            "suffix": DOWNLOAD_REASON_OFF_HOURS_SUFFIX,
+            "suffix": cfg.DOWNLOAD_REASON_OFF_HOURS_SUFFIX,
             "description": "업무 시간 외/휴일 다운로드",
         },
     ]
@@ -128,7 +115,7 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str) -> int:
     for check in checks_to_run:
         save_path = os.path.join(
             save_dir,
-            f"{DOWNLOAD_REASON_REPORT_BASE}({check['suffix']})_{prev_month}.xlsx",
+            f"{cfg.DOWNLOAD_REASON_REPORT_BASE}({check['suffix']})_{prev_month}.xlsx",
         )
         run_and_save_check(
             df=df,
@@ -160,10 +147,10 @@ def _check_download_sayu(df: pd.DataFrame) -> pd.DataFrame:
                     5번째 위치(인덱스 4)에 없는 경우.
     """
     expected_reason_col_index = 4
-    if df.columns[expected_reason_col_index] != COL_DOWNLOAD_REASON:
+    if df.columns[expected_reason_col_index] != cfg.COL_DOWNLOAD_REASON:
         raise ValueError(
             (
-                f"'{COL_DOWNLOAD_REASON}' 컬럼이 "
+                f"'{cfg.COL_DOWNLOAD_REASON}' 컬럼이 "
                 f"{expected_reason_col_index} 위치에 없습니다. "
                 f"실제 컬럼: {df.columns[expected_reason_col_index]}"
             )
@@ -171,9 +158,8 @@ def _check_download_sayu(df: pd.DataFrame) -> pd.DataFrame:
 
     # 다운로드 사유의 고유 문자 수에 대한 필터를 적용합니다.
     # 원본 주석: "5. 고유 문자 개수 5개 이하인 row 필터링"
-    return df[df[COL_DOWNLOAD_REASON].apply(_unique_char_count_below_5)].sort_values(
-        [COL_EMPLOYEE_ID, COL_ACCESS_TIME]
-    )
+    filtered_df = df[df[cfg.COL_DOWNLOAD_REASON].apply(_unique_char_count_below_5)]
+    return filtered_df.sort_values([cfg.COL_EMPLOYEE_ID, cfg.COL_ACCESS_TIME])
 
 
 def _filter_high_download_users(df: pd.DataFrame) -> pd.DataFrame:
@@ -195,25 +181,27 @@ def _filter_high_download_users(df: pd.DataFrame) -> pd.DataFrame:
                     6번째 위치(인덱스 5)에 없는 경우.
     """
     expected_count_col_index = 5
-    if df.columns[expected_count_col_index] != COL_DOWNLOAD_COUNT:
+    if df.columns[expected_count_col_index] != cfg.COL_DOWNLOAD_COUNT:
         raise ValueError(
             (
-                f"'{COL_DOWNLOAD_COUNT}' 컬럼이 "
+                f"'{cfg.COL_DOWNLOAD_COUNT}' 컬럼이 "
                 f"{expected_count_col_index} 위치에 없습니다. "
                 f"실제 컬럼: {df.columns[expected_count_col_index]}"
             )
         )
 
     # 직원 ID별로 그룹화하고 다운로드 수를 합산합니다.
-    download_sum_per_user = df.groupby(COL_EMPLOYEE_ID)[COL_DOWNLOAD_COUNT].sum()
+    download_sum_per_user = df.groupby(cfg.COL_EMPLOYEE_ID)[
+        cfg.COL_DOWNLOAD_COUNT
+    ].sum()
     # 다운로드 수 임계값을 충족하거나 초과하는 사용자를 식별합니다.
     target_users = download_sum_per_user[
-        download_sum_per_user >= DOWNLOAD_COUNT_THRESHOLD
+        download_sum_per_user >= cfg.DOWNLOAD_COUNT_THRESHOLD
     ].index
 
     # 식별된 사용자의 모든 기록을 반환합니다.
-    return df[df[COL_EMPLOYEE_ID].isin(target_users)].sort_values(
-        [COL_EMPLOYEE_ID, COL_ACCESS_TIME]
+    return df[df[cfg.COL_EMPLOYEE_ID].isin(target_users)].sort_values(
+        [cfg.COL_EMPLOYEE_ID, cfg.COL_ACCESS_TIME]
     )
 
 
@@ -245,23 +233,25 @@ def _filter_high_freq_download(df: pd.DataFrame) -> pd.DataFrame:
     )  # 높은 빈도의 다운로드 폭주에 속하는 기록의 원본 인덱스를 저장합니다.
 
     # 직원 ID별로 그룹화하여 각 사용자의 다운로드 패턴을 분석합니다.
-    for _, group in df_copy.groupby(COL_EMPLOYEE_ID):
+    for _, group in df_copy.groupby(cfg.COL_EMPLOYEE_ID):
         # 정수 인덱스 i와 함께 .loc를 사용하기 위해 인덱스를 재설정합니다.
-        group = group.sort_values(COL_ACCESS_TIME).reset_index()
+        group = group.sort_values(cfg.COL_ACCESS_TIME).reset_index()
 
         for i in range(len(group)):
-            current_download_time = cast(pd.Timestamp, group.loc[i, COL_ACCESS_TIME])
+            current_download_time = cast(
+                pd.Timestamp, group.loc[i, cfg.COL_ACCESS_TIME]
+            )
             # 현재 다운로드 시간으로부터 1시간 창을 정의합니다.
             window_end_time = current_download_time + pd.Timedelta(hours=1)
 
             # 이 1시간 창 내의 다운로드를 선택합니다.
             downloads_in_window = group[
-                (group[COL_ACCESS_TIME] >= current_download_time)
-                & (group[COL_ACCESS_TIME] <= window_end_time)
+                (group[cfg.COL_ACCESS_TIME] >= current_download_time)
+                & (group[cfg.COL_ACCESS_TIME] <= window_end_time)
             ]
 
             # 이 창 내의 다운로드 수가 빈도 임계값을 충족하면 플래그를 지정합니다.
-            if len(downloads_in_window) >= DOWNLOAD_FREQUENCY_THRESHOLD:
+            if len(downloads_in_window) >= cfg.DOWNLOAD_FREQUENCY_THRESHOLD:
                 flagged_indices.update(
                     downloads_in_window["index"].tolist()
                 )  # reset_index() 후 저장된 원본 인덱스를 사용합니다.
@@ -270,6 +260,6 @@ def _filter_high_freq_download(df: pd.DataFrame) -> pd.DataFrame:
         result_df = df_copy.loc[
             sorted(flagged_indices)
         ]  # 원본 인덱스를 사용하여 선택합니다.
-        return result_df.sort_values([COL_EMPLOYEE_ID, COL_ACCESS_TIME])
+        return result_df.sort_values([cfg.COL_EMPLOYEE_ID, cfg.COL_ACCESS_TIME])
     else:
         return pd.DataFrame(columns=df.columns)  # 동일한 열을 가진 빈 DataFrame 반환

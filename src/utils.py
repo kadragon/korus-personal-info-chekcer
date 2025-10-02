@@ -14,6 +14,7 @@ import pandas as pd
 from dateutil.relativedelta import relativedelta
 from openpyxl.utils import get_column_letter
 
+import config as cfg
 from display import (
     print_error,
     print_info,
@@ -21,12 +22,6 @@ from display import (
     print_zip_result,
     print_zip_warning,
 )
-
-# Constants for utils.py
-EXCEL_EXTENSIONS = (
-    ".xlsx",
-    ".xls",
-)  # 입력 파일에 지원되는 Excel 파일 확장자 튜플입니다.
 
 
 def get_prev_month_yyyymm() -> str:
@@ -115,7 +110,7 @@ def find_and_prepare_excel_file(
     excel_files = [
         f
         for f in os.listdir(download_dir)
-        if f.startswith(file_prefix) and f.lower().endswith(EXCEL_EXTENSIONS)
+        if f.startswith(file_prefix) and f.lower().endswith(cfg.EXCEL_EXTENSIONS)
     ]
 
     if not excel_files:
