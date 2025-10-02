@@ -1,23 +1,23 @@
 """
 데이터 검사 프로세스를 실행하는 메인 스크립트입니다.
 
-이 스크립트는 다양한 검사 모듈의 실행을 조정합니다:
-- 다운로드 사유 검사기 (`sayu_checker`)
-- 로그인 검사기 (`login_checker`)
-- 개인 파일 접근 검사기 (`personal_file_checker`)
+이 스크립트는 `checkers` 패키지 내의 모든 검사 모듈을 동적으로 찾아 실행합니다.
+각 검사기는 `*_checker.py` 형식의 파일명을 가져야 하며, 내부에 `*_checker`라는
+이름의 메인 함수를 포함해야 합니다.
 
 디렉토리와 같은 환경 변수 등 필요한 구성을 설정한 후,
 각 검사기의 메인 함수를 호출합니다.
 이 스크립트는 애플리케이션의 기본 진입점으로 실행되도록 설계되었습니다.
 """
 
+import importlib
 import os
+import pkgutil
+from types import ModuleType
 
 from dotenv import load_dotenv
 
-from checkers.download_reason_checker import sayu_checker
-from checkers.login_checker import login_checker
-from checkers.personal_file_checker import personal_file_checker
+import checkers
 from display import (
     print_error,
     print_header,
@@ -34,12 +34,44 @@ download_dir = os.getenv("DOWNLOAD_DIR")  # 원본 Excel 파일이 있는 디렉
 base_save_dir = os.getenv("SAVE_DIR")  # 출력 보고서가 저장될 기본 디렉토리입니다.
 
 
+def discover_and_run_checkers(
+    download_dir: str, reports_save_dir: str, prev_month_str: str
+) -> int:
+    """
+    `checkers` 패키지 내의 모든 검사기 모듈을 동적으로 찾아 실행합니다.
+    """
+    total_count = 0
+    for module_info in pkgutil.iter_modules(checkers.__path__):
+        module_name = module_info.name
+        if not module_name.endswith("_checker"):
+            continue
+
+        try:
+            module: ModuleType = importlib.import_module(f"checkers.{module_name}")
+            checker_func_name = module_name
+            checker_func = getattr(module, checker_func_name, None)
+
+            if callable(checker_func):
+                count = checker_func(download_dir, reports_save_dir, prev_month_str)
+                total_count += count
+            else:
+                print_error(
+                    f"'{module_name}' 모듈에서 '{checker_func_name}' 함수를 "
+                    f"찾을 수 없거나 실행할 수 없습니다."
+                )
+
+        except Exception as e:
+            print_error(f"'{module_name}' 검사 중 예상치 못한 오류 발생: {e}")
+
+    return total_count
+
+
 def main():
     """
     데이터 검사 프로세스를 실행하는 메인 함수입니다.
 
     분석 대상 월(지난달)을 결정하고, 필요한 저장 디렉토리 구조를 생성한 후,
-    선택된 검사 함수들을 실행합니다.
+    `checkers` 패키지 내의 모든 검사기들을 동적으로 찾아 실행합니다.
     """
     if not base_save_dir:
         print_error(
@@ -62,27 +94,9 @@ def main():
     print_info(f"결과 저장 경로: {reports_save_dir}")
 
     if download_dir and reports_save_dir:
-        total_count = 0
-
-        try:
-            count = sayu_checker(download_dir, reports_save_dir, prev_month_str)
-            total_count += count
-        except Exception as e:
-            print_error(f"다운로드 사유 검사 중 예상치 못한 오류 발생: {e}")
-
-        try:
-            count = login_checker(download_dir, reports_save_dir, prev_month_str)
-            total_count += count
-        except Exception as e:
-            print_error(f"로그인 검사 중 예상치 못한 오류 발생: {e}")
-
-        try:
-            count = personal_file_checker(
-                download_dir, reports_save_dir, prev_month_str
-            )
-            total_count += count
-        except Exception as e:
-            print_error(f"개인 파일 접근 검사 중 예상치 못한 오류 발생: {e}")
+        total_count = discover_and_run_checkers(
+            download_dir, reports_save_dir, prev_month_str
+        )
 
         print_zip_header()
         try:
