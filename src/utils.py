@@ -8,11 +8,13 @@ import os
 import zipfile
 from datetime import datetime
 
+import holidays
 import openpyxl
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 from openpyxl.utils import get_column_letter
 
+import config as cfg
 from display import (
     print_error,
     print_info,
@@ -20,12 +22,6 @@ from display import (
     print_zip_result,
     print_zip_warning,
 )
-
-# Constants for utils.py
-EXCEL_EXTENSIONS = (
-    ".xlsx",
-    ".xls",
-)  # 입력 파일에 지원되는 Excel 파일 확장자 튜플입니다.
 
 
 def get_prev_month_yyyymm() -> str:
@@ -99,6 +95,62 @@ def save_excel_with_autofit(df: pd.DataFrame, path: str):
     wb.close()
 
 
+def _find_excel_files(download_dir: str, file_prefix: str) -> list[str]:
+    """지정된 디렉토리에서 접두사와 확장자를 기준으로 Excel 파일 목록을 찾습니다."""
+    if not download_dir or not os.path.isdir(download_dir):
+        raise EnvironmentError(f"다운로드 디렉토리를 찾을 수 없습니다: {download_dir}")
+
+    return [
+        f
+        for f in os.listdir(download_dir)
+        if f.startswith(file_prefix) and f.lower().endswith(cfg.EXCEL_EXTENSIONS)
+    ]
+
+
+def _merge_and_preprocess_files(
+    excel_files: list[str], download_dir: str
+) -> pd.DataFrame | None:
+    """Excel 파일 목록을 읽고 단일 데이터프레임으로 병합한 후 전처리합니다."""
+    all_dfs = []
+    for file_name in excel_files:
+        file_path = os.path.join(download_dir, file_name)
+        try:
+            if file_path.lower().endswith(".xlsx"):
+                df = pd.read_excel(file_path)
+            else:
+                df = pd.read_excel(file_path, engine="xlrd")
+            all_dfs.append(df)
+        except Exception as e:
+            print_error(f"'{file_name}' 파일 처리 중 오류 발생: {e}")
+            return None
+
+    if not all_dfs:
+        return None
+
+    merged_df = pd.concat(all_dfs, ignore_index=True)
+
+    # "접속일시" 컬럼이 존재하면 datetime으로 변환
+    if cfg.COL_ACCESS_TIME in merged_df.columns:
+        merged_df[cfg.COL_ACCESS_TIME] = pd.to_datetime(merged_df[cfg.COL_ACCESS_TIME])
+
+    # "교번" 또는 "신분번호" 컬럼을 "교직원ID"로 표준화
+    has_gyobeon = "교번" in merged_df.columns
+    has_sinbun = "신분번호" in merged_df.columns
+
+    if has_gyobeon and has_sinbun:
+        print_info(
+            "경고: 입력 파일에 '교번'과 '신분번호' 컬럼이 모두 존재합니다. "
+            "'교번'을 '교직원ID'로 우선 사용합니다."
+        )
+        merged_df.rename(columns={"교번": cfg.COL_EMPLOYEE_ID}, inplace=True)
+    elif has_gyobeon:
+        merged_df.rename(columns={"교번": cfg.COL_EMPLOYEE_ID}, inplace=True)
+    elif has_sinbun:
+        merged_df.rename(columns={"신분번호": cfg.COL_EMPLOYEE_ID}, inplace=True)
+
+    return merged_df
+
+
 def find_and_prepare_excel_file(
     download_dir: str,
     file_prefix: str,
@@ -106,49 +158,46 @@ def find_and_prepare_excel_file(
     output_file_basename: str,
     prev_month: str,
 ) -> tuple[pd.DataFrame | None, str | None]:
-    if not download_dir:
-        raise EnvironmentError(
-            "다운로드 디렉토리('download_dir')가 지정되지 않았습니다."
-        )
+    """
+    지정된 폴더에서 Excel 파일을 찾아 병합, 전처리 및 저장합니다.
 
-    excel_files = [
-        f
-        for f in os.listdir(download_dir)
-        if f.startswith(file_prefix) and f.lower().endswith(EXCEL_EXTENSIONS)
-    ]
-
-    if not excel_files:
-        # 이 경우는 오류가 아니므로 print_error 대신 print_info를 사용합니다.
-        print_info(
-            f"'{file_prefix}'로 시작하는 파일을 찾을 수 없습니다. 이 검사는 건너뜁니다."
-        )
+    이 함수는 다음을 수행합니다:
+    1. `_find_excel_files`를 사용하여 관련 파일들을 찾습니다.
+    2. `_merge_and_preprocess_files`를 사용하여 파일들을 병합하고 전처리합니다.
+    3. 병합된 데이터프레임을 중간 결과물로 저장합니다.
+    """
+    try:
+        excel_files = _find_excel_files(download_dir, file_prefix)
+        if not excel_files:
+            print_info(
+                f"'{file_prefix}'로 시작하는 파일을 찾을 수 없습니다. "
+                f"이 검사는 건너뜁니다."
+            )
+            return None, None
+    except EnvironmentError as e:
+        print_error(str(e))
         return None, None
 
-    os.makedirs(save_dir, exist_ok=True)
-
-    all_dfs = []
-    for file_name in excel_files:
-        file_path = os.path.join(download_dir, file_name)
-        if file_path.lower().endswith(".xlsx"):
-            df = pd.read_excel(file_path)
-        else:
-            df = pd.read_excel(file_path, engine="xlrd")
-        all_dfs.append(df)
-
-    merged_df = pd.concat(all_dfs, ignore_index=True)
+    merged_df = _merge_and_preprocess_files(excel_files, download_dir)
+    if merged_df is None:
+        return None, None
 
     print_info(f"{output_file_basename} 원본 데이터: {len(merged_df)}건")
 
+    os.makedirs(save_dir, exist_ok=True)
     destination_save_path = os.path.join(
         save_dir, f"{output_file_basename}_{prev_month}.xlsx"
     )
-    merged_df.to_excel(destination_save_path, index=False)
-    print_info(
-        (
-            f"모든 파일을 합쳐서 "
-            f"'{os.path.basename(destination_save_path)}'(으)로 저장했습니다."
+    try:
+        merged_df.to_excel(destination_save_path, index=False)
+        save_msg = (
+            f"모든 파일을 합쳐 '{os.path.basename(destination_save_path)}'"
+            f"(으)로 저장했습니다."
         )
-    )
+        print_info(save_msg)
+    except Exception as e:
+        print_error(f"병합된 파일 저장 중 오류 발생: {e}")
+        return None, None
 
     return merged_df, destination_save_path
 
@@ -174,6 +223,56 @@ def zip_files_by_prefix(target_dir: str, prefix_list: list[str]):
                 zipf.write(os.path.join(target_dir, filename), arcname=filename)
 
         print_zip_result(zip_name, len(matched))
+
+
+def filter_by_time_conditions(
+    df: pd.DataFrame,
+    time_col: str,
+    employee_id_col: str,
+    check_off_hours: bool,
+    check_holidays_weekends: bool,
+    off_hours_start: int,
+    off_hours_end: int,
+) -> pd.DataFrame:
+    """
+    시간 조건(업무 시간 외, 공휴일/주말)에 따라 데이터프레임을 필터링합니다.
+
+    매개변수:
+        df (pd.DataFrame): 필터링할 데이터프레임.
+        time_col (str): 타임스탬프 정보를 포함하는 컬럼 이름.
+        employee_id_col (str): 직원 ID를 포함하는 컬럼 이름.
+        check_off_hours (bool): 업무 시간 외 검사를 활성화할지 여부.
+        check_holidays_weekends (bool): 공휴일 및 주말 검사를 활성화할지 여부.
+        off_hours_start (int): 업무 시간 외 시작 시간.
+        off_hours_end (int): 업무 시간 외 종료 시간.
+
+    반환 값:
+        pd.DataFrame: 지정된 시간 조건을 충족하는 필터링된 데이터프레임.
+    """
+    if df is None:
+        raise ValueError("Input DataFrame cannot be None.")
+
+    df_copy = df.copy()
+
+    final_mask = pd.Series(False, index=df.index)
+
+    if check_off_hours:
+        hour = df_copy[time_col].dt.hour
+        is_off_hour = (hour < off_hours_end) | (hour >= off_hours_start)
+        final_mask |= is_off_hour
+
+    if check_holidays_weekends:
+        years = df_copy[time_col].dt.year.unique()
+        kr_holidays = holidays.KR(years=years)  # type: ignore [attr-defined]
+        weekday = df_copy[time_col].dt.weekday
+        date_only = df_copy[time_col].dt.date
+
+        is_weekend = weekday >= 5  # Monday is 0, Sunday is 6
+        is_holiday = date_only.isin(kr_holidays)
+        final_mask |= is_weekend
+        final_mask |= is_holiday
+
+    return df_copy[final_mask].sort_values([employee_id_col, time_col])
 
 
 def run_and_save_check(
