@@ -52,7 +52,9 @@ def discover_and_run_checkers(
             checker_func = getattr(module, checker_func_name, None)
 
             if callable(checker_func):
-                count = checker_func(download_dir, reports_save_dir, prev_month_str)
+                result = checker_func(download_dir, reports_save_dir, prev_month_str)
+                # checker_func의 반환값이 None일 경우를 대비하여 0으로 처리
+                count = result if isinstance(result, int) else 0
                 total_count += count
             else:
                 print_error(
