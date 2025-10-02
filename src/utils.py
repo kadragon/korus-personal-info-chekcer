@@ -134,9 +134,18 @@ def _merge_and_preprocess_files(
         merged_df[cfg.COL_ACCESS_TIME] = pd.to_datetime(merged_df[cfg.COL_ACCESS_TIME])
 
     # "교번" 또는 "신분번호" 컬럼을 "교직원ID"로 표준화
-    if "교번" in merged_df.columns:
+    has_gyobeon = "교번" in merged_df.columns
+    has_sinbun = "신분번호" in merged_df.columns
+
+    if has_gyobeon and has_sinbun:
+        print_info(
+            "경고: 입력 파일에 '교번'과 '신분번호' 컬럼이 모두 존재합니다. "
+            "'교번'을 '교직원ID'로 우선 사용합니다."
+        )
         merged_df.rename(columns={"교번": cfg.COL_EMPLOYEE_ID}, inplace=True)
-    elif "신분번호" in merged_df.columns:
+    elif has_gyobeon:
+        merged_df.rename(columns={"교번": cfg.COL_EMPLOYEE_ID}, inplace=True)
+    elif has_sinbun:
         merged_df.rename(columns={"신분번호": cfg.COL_EMPLOYEE_ID}, inplace=True)
 
     return merged_df
