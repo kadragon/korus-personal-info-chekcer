@@ -18,6 +18,13 @@ from dotenv import load_dotenv
 from checkers.download_reason_checker import sayu_checker
 from checkers.login_checker import login_checker
 from checkers.personal_file_checker import personal_file_checker
+from display import (
+    print_error,
+    print_header,
+    print_info,
+    print_summary,
+    print_zip_header,
+)
 from utils import get_prev_month_yyyymm, make_save_dir, zip_files_by_prefix
 
 # .env 파일이 있는 경우 환경 변수를 로드합니다.
@@ -35,71 +42,58 @@ def main():
     선택된 검사 함수들을 실행합니다.
     """
     if not base_save_dir:
-        print(
-            "Error: SAVE_DIR environment variable is not set. "
-            "Please configure it in your .env file or environment."
+        print_error(
+            "SAVE_DIR 환경 변수가 설정되지 않았습니다. "
+            ".env 파일이나 환경에서 설정해주세요."
         )
         return
     if not download_dir:
-        print(
-            "Error: DOWNLOAD_DIR environment variable is not set. "
-            "Please configure it in your .env file or environment."
+        print_error(
+            "DOWNLOAD_DIR 환경 변수가 설정되지 않았습니다. "
+            ".env 파일이나 환경에서 설정해주세요."
         )
         return
 
     prev_month_str = get_prev_month_yyyymm()
-    # 이전 달의 보고서를 위한 특정 하위 디렉토리를 생성합니다.
-    # 예: base_save_dir가 /reports이면, save_dir는 /reports/YYYYMM이 됩니다.
     reports_save_dir = make_save_dir(base_save_dir)
 
-    print(f"Starting data checks for month: {prev_month_str}")
-    print(f"Source data directory: {download_dir}")
-    print(f"Reports will be saved in: {reports_save_dir}")
+    print_header(f"개인정보 처리 현황 자동 점검 ({prev_month_str}월분)")
+    print_info(f"원본 데이터 경로: {download_dir}")
+    print_info(f"결과 저장 경로: {reports_save_dir}")
 
-    # 계속하기 전에 디렉토리가 유효한지 확인합니다.
     if download_dir and reports_save_dir:
-        # 개인 정보 다운로드 사유 확인 섹션입니다.
-        # 원본 주석: "# 개인정보 다운로드 사유 검사"
-        print("\n### Running Download Reason Checker ###")
+        total_count = 0
+
         try:
-            sayu_checker(download_dir, reports_save_dir, prev_month_str)
-            print("Download Reason Checker completed.")
-        except FileNotFoundError as e:
-            print(f"Error in Download Reason Checker: {e}")
+            count = sayu_checker(download_dir, reports_save_dir, prev_month_str)
+            total_count += count
         except Exception as e:
-            print(f"An unexpected error occurred in Download Reason Checker: {e}")
+            print_error(f"다운로드 사유 검사 중 예상치 못한 오류 발생: {e}")
 
-        # 로그인 IP 패턴 확인 섹션입니다.
-        # 원본 주석: "# 로그인 IP 검사"
-        print("\n### Running Login Checker ###")
         try:
-            login_checker(download_dir, reports_save_dir, prev_month_str)
-            print("Login Checker completed.")
-        except FileNotFoundError as e:
-            print(f"Error in Login Checker: {e}")
+            count = login_checker(download_dir, reports_save_dir, prev_month_str)
+            total_count += count
         except Exception as e:
-            print(f"An unexpected error occurred in Login Checker: {e}")
+            print_error(f"로그인 검사 중 예상치 못한 오류 발생: {e}")
 
-        # 개인 정보 접근 기록 확인 섹션입니다.
-        # 원본 주석: "# 개인정보 조회 기록 점검"
-        print("\n### Running Personal File Checker ###")
         try:
-            personal_file_checker(download_dir, reports_save_dir, prev_month_str)
-            print("Personal File Checker completed.")
-        except FileNotFoundError as e:
-            print(f"Error in Personal File Checker: {e}")
+            count = personal_file_checker(
+                download_dir, reports_save_dir, prev_month_str
+            )
+            total_count += count
         except Exception as e:
-            print(f"An unexpected error occurred in Personal File Checker: {e}")
+            print_error(f"개인 파일 접근 검사 중 예상치 못한 오류 발생: {e}")
 
-        print("\nAll checks finished.")
-
-        # zip_files_by_prefix
+        print_zip_header()
         try:
             zip_files_by_prefix(reports_save_dir, ["[붙임2", "[붙임3", "[붙임4"])
         except Exception as e:
-            print(f"Error during zipping: {e}")
+            print_error(f"압축 작업 중 오류 발생: {e}")
+
+        print_summary(reports_save_dir, total_count)
+
     else:
-        print("Error: Download directory or save directory is not properly configured.")
+        print_error("다운로드 경로나 저장 경로가 올바르게 설정되지 않았습니다.")
 
 
 if __name__ == "__main__":
