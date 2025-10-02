@@ -26,8 +26,8 @@
 ### 1. 저장소 클론
 
 ```bash
-git clone https://github.com/kadragon/korus-personal-info-chekcer
-cd korus-personal-info-chekcer
+git clone https://github.com/kadragon/korus-personal-info-checker
+cd korus-personal-info-checker
 ```
 
 ### 2. 의존성 설치
