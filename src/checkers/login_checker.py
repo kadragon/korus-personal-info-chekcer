@@ -89,10 +89,6 @@ def login_checker(download_dir: str, save_dir: str, prev_month: str) -> int:
             f"실제 컬럼: {df.columns[expected_ip_col_index]}"
         )
 
-    # '접속일시' 컬럼을 datetime 객체로 변환
-    if COL_ACCESS_TIME in df.columns:
-        df[COL_ACCESS_TIME] = pd.to_datetime(df[COL_ACCESS_TIME])
-
     checks_to_run = [
         {
             "function": _filter_ip_switch,

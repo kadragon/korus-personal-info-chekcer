@@ -138,6 +138,11 @@ def find_and_prepare_excel_file(
 
     merged_df = pd.concat(all_dfs, ignore_index=True)
 
+    # "접속일시" 컬럼이 존재하면 datetime으로 변환
+    time_col = "접속일시"
+    if time_col in merged_df.columns:
+        merged_df[time_col] = pd.to_datetime(merged_df[time_col])
+
     print_info(f"{output_file_basename} 원본 데이터: {len(merged_df)}건")
 
     destination_save_path = os.path.join(
@@ -205,10 +210,6 @@ def filter_by_time_conditions(
         raise ValueError("Input DataFrame cannot be None.")
 
     df_copy = df.copy()
-    # 이 함수를 호출하기 전에 datetime으로 변환하는 것이 더 효율적일 수 있지만,
-    # 각 검사기에서 독립적으로 사용될 수 있도록 여기서 변환을 수행합니다.
-    if not pd.api.types.is_datetime64_any_dtype(df_copy[time_col]):
-        df_copy[time_col] = pd.to_datetime(df_copy[time_col])
 
     final_mask = pd.Series(False, index=df.index)
 

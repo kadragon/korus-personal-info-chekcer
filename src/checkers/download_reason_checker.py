@@ -94,10 +94,6 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str) -> int:
     if df is None:
         return 0
 
-    # '접속일시' 컬럼을 datetime 객체로 변환
-    if COL_ACCESS_TIME in df.columns:
-        df[COL_ACCESS_TIME] = pd.to_datetime(df[COL_ACCESS_TIME])
-
     checks_to_run = [
         {
             "function": _check_download_sayu,
