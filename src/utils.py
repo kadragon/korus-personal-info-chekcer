@@ -143,6 +143,12 @@ def find_and_prepare_excel_file(
     if time_col in merged_df.columns:
         merged_df[time_col] = pd.to_datetime(merged_df[time_col])
 
+    # "교번" 또는 "신분번호" 컬럼을 "직원ID"로 표준화
+    if "교번" in merged_df.columns:
+        merged_df.rename(columns={"교번": "직원ID"}, inplace=True)
+    elif "신분번호" in merged_df.columns:
+        merged_df.rename(columns={"신분번호": "직원ID"}, inplace=True)
+
     print_info(f"{output_file_basename} 원본 데이터: {len(merged_df)}건")
 
     destination_save_path = os.path.join(

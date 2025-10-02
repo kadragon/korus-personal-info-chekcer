@@ -34,10 +34,7 @@ PERSONAL_INFO_ACCESS_HIGH_VOLUME_SAVES_SUFFIX = (
     "100건이상저장"  # 보고서 접미사: SAVE_THRESHOLD보다 많은 기록을 저장한 사용자
 )
 COL_ACCESS_TIME = "접속일시"  # 접근 타임스탬프 (예: "YYYY-MM-DD HH:MM:SS")
-COL_EMPLOYEE_ID = (
-    "교번"  # 직원 ID. 주로 다운로드 사유 및 개인 파일 접근 로그에 사용됩니다.
-)
-COL_EMPLOYEE_ID_LOGIN = "신분번호"  # 직원 ID, 특히 로그인 기록 파일에서 발견됨.
+COL_EMPLOYEE_ID = "직원ID"  # 표준화된 직원 ID 컬럼명
 COL_PROGRAM_NAME = "프로그램명"  # 사용자가 접근한 프로그램/시스템의 이름
 COL_DETAIL_CONTENT = "상세내용"  # 접근한 활동 또는 내용에 대한 상세 설명
 COL_JOB_PERFORMANCE = "수행업무"  # 사용자가 수행한 작업/업무 (예: '조회', '저장')
@@ -162,17 +159,8 @@ def _filter_by_job_master_exclude_detail_id(df: pd.DataFrame) -> pd.DataFrame:
     예외:
         ValueError: 필터링에 필수적인 열이 누락된 경우.
     """
-    # 사용할 직원 ID 열('교번' 또는 '신분번호')을 결정합니다.
+    # 사용할 직원 ID 열을 표준화된 "직원ID"로 사용합니다.
     employee_id_col_to_use = COL_EMPLOYEE_ID
-    if COL_EMPLOYEE_ID not in df.columns and COL_EMPLOYEE_ID_LOGIN in df.columns:
-        employee_id_col_to_use = COL_EMPLOYEE_ID_LOGIN
-    elif COL_EMPLOYEE_ID not in df.columns:
-        raise ValueError(
-            (
-                f"'{COL_EMPLOYEE_ID}' 또는 "
-                f"'{COL_EMPLOYEE_ID_LOGIN}' 컬럼을 찾을 수 없습니다."
-            )
-        )
 
     required_cols = [
         COL_PROGRAM_NAME,
@@ -190,9 +178,9 @@ def _filter_by_job_master_exclude_detail_id(df: pd.DataFrame) -> pd.DataFrame:
     # 조건 1: '프로그램명'이 '인사마스터'인 기록만 선택합니다.
     hr_master_df = df[df[COL_PROGRAM_NAME] == "인사마스터"].copy()
 
-    # 조건 2: '상세내용'에 자신의 '교번'이 포함되어 있지 않은 기록만 남깁니다.
+    # 조건 2: '상세내용'에 자신의 '직원ID'가 포함되어 있지 않은 기록만 남깁니다.
     #         (즉, 타인 조회 기록만 필터링)
-    # 각 행을 순회하며 '교번'과 '상세내용'을 비교해야 하므로 apply 함수를 사용합니다.
+    # 각 행을 순회하며 '직원ID'와 '상세내용'을 비교해야 하므로 apply 함수를 사용합니다.
     is_not_self_access = [
         str(emp_id) not in str(detail)
         for emp_id, detail in zip(
@@ -227,17 +215,8 @@ def _extract_and_save_by_job(
         ValueError: 필수 열(`COL_EMPLOYEE_ID` 또는 대체 열, `COL_EMPLOYEE_NAME`,
                       `job_column_name`)이 누락된 경우.
     """
-    # 사용할 직원 ID 열('교번' 또는 '신분번호')을 결정합니다.
+    # 사용할 직원 ID 열을 표준화된 "직원ID"로 사용합니다.
     employee_id_col_to_use = COL_EMPLOYEE_ID
-    if COL_EMPLOYEE_ID not in df.columns and COL_EMPLOYEE_ID_LOGIN in df.columns:
-        employee_id_col_to_use = COL_EMPLOYEE_ID_LOGIN
-    elif COL_EMPLOYEE_ID not in df.columns:
-        raise ValueError(
-            (
-                f"'{COL_EMPLOYEE_ID}' 또는 "
-                f"'{COL_EMPLOYEE_ID_LOGIN}' 컬럼을 찾을 수 없습니다."
-            )
-        )
 
     required_cols_check = [
         employee_id_col_to_use,

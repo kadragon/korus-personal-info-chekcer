@@ -30,7 +30,7 @@ LOGIN_REPORT_OFF_HOURS_SUFFIX = "업무시간외"  # 보고서 접미사: 표준
 LOGIN_REPORT_HOLIDAY_SUFFIX = "휴일"  # 보고서 접미사: 공휴일 또는 주말 로그인
 COL_IP = "IP"  # IP 주소
 COL_ACCESS_TIME = "접근일시"  # 접근 타임스탬프 (예: "YYYY-MM-DD HH:MM:SS")
-COL_EMPLOYEE_ID_LOGIN = "신분번호"  # 직원 ID, 특히 로그인 기록 파일에서 발견됨.
+COL_EMPLOYEE_ID = "직원ID"  # 표준화된 직원 ID 컬럼명
 # login_checker용: 동일 사용자에 대해 여러 IP에서의 로그인을
 # 감지하기 위한 시간 창(시간 단위).
 LOGIN_IP_SWITCH_WINDOW_HOURS = 1
@@ -102,7 +102,7 @@ def login_checker(download_dir: str, save_dir: str, prev_month: str) -> int:
             "function": lambda df: filter_by_time_conditions(
                 df,
                 time_col=COL_ACCESS_TIME,
-                employee_id_col=COL_EMPLOYEE_ID_LOGIN,
+                employee_id_col=COL_EMPLOYEE_ID,
                 check_off_hours=True,
                 check_holidays_weekends=False,
                 off_hours_start=LOGIN_OFF_HOURS_START,
@@ -115,7 +115,7 @@ def login_checker(download_dir: str, save_dir: str, prev_month: str) -> int:
             "function": lambda df: filter_by_time_conditions(
                 df,
                 time_col=COL_ACCESS_TIME,
-                employee_id_col=COL_EMPLOYEE_ID_LOGIN,
+                employee_id_col=COL_EMPLOYEE_ID,
                 check_off_hours=False,
                 check_holidays_weekends=True,
                 off_hours_start=0,  # Not used
@@ -148,7 +148,7 @@ def _filter_ip_switch(df: pd.DataFrame) -> pd.DataFrame:
     매개변수:
         df (pd.DataFrame): 로그인 기록을 포함하는 DataFrame입니다. 예상되는 열에는
                            `COL_ACCESS_TIME`(접근 타임스탬프) 및 `COL_IP`(IP 주소),
-                           그리고 `COL_EMPLOYEE_ID_LOGIN`(직원 식별자)이 포함됩니다.
+                           그리고 `COL_EMPLOYEE_ID`(직원 식별자)이 포함됩니다.
 
     반환 값:
         pd.DataFrame: IP 변경 알림을 트리거한 사용자 기록을 포함하는 DataFrame으로,
@@ -168,7 +168,7 @@ def _filter_ip_switch(df: pd.DataFrame) -> pd.DataFrame:
     )  # 중복을 피하기 위해 플래그가 지정된 행의 인덱스를 저장하는 데 세트를 사용합니다.
 
     # 직원 ID별로 그룹화하여 각 사용자의 로그인 패턴을 분석합니다.
-    for _, group in df_copy.groupby(COL_EMPLOYEE_ID_LOGIN):
+    for _, group in df_copy.groupby(COL_EMPLOYEE_ID):
         group = group.sort_values(COL_ACCESS_TIME)
 
         # 사용자의 각 로그인 이벤트를 반복합니다.
@@ -193,7 +193,7 @@ def _filter_ip_switch(df: pd.DataFrame) -> pd.DataFrame:
 
     if flagged_indices:
         result_df = df_copy.loc[sorted(flagged_indices)]
-        return result_df.sort_values([COL_EMPLOYEE_ID_LOGIN, COL_ACCESS_TIME])
+        return result_df.sort_values([COL_EMPLOYEE_ID, COL_ACCESS_TIME])
     else:
         return pd.DataFrame(
             columns=df.columns
