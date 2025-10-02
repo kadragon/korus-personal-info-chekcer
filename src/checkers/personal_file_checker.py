@@ -34,7 +34,7 @@ PERSONAL_INFO_ACCESS_HIGH_VOLUME_SAVES_SUFFIX = (
     "100건이상저장"  # 보고서 접미사: SAVE_THRESHOLD보다 많은 기록을 저장한 사용자
 )
 COL_ACCESS_TIME = "접속일시"  # 접근 타임스탬프 (예: "YYYY-MM-DD HH:MM:SS")
-COL_EMPLOYEE_ID = "직원ID"  # 표준화된 직원 ID 컬럼명
+COL_EMPLOYEE_ID = "교직원ID"  # 표준화된 직원 ID 컬럼명
 COL_PROGRAM_NAME = "프로그램명"  # 사용자가 접근한 프로그램/시스템의 이름
 COL_DETAIL_CONTENT = "상세내용"  # 접근한 활동 또는 내용에 대한 상세 설명
 COL_JOB_PERFORMANCE = "수행업무"  # 사용자가 수행한 작업/업무 (예: '조회', '저장')

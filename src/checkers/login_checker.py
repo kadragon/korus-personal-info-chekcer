@@ -30,7 +30,7 @@ LOGIN_REPORT_OFF_HOURS_SUFFIX = "업무시간외"  # 보고서 접미사: 표준
 LOGIN_REPORT_HOLIDAY_SUFFIX = "휴일"  # 보고서 접미사: 공휴일 또는 주말 로그인
 COL_IP = "IP"  # IP 주소
 COL_ACCESS_TIME = "접근일시"  # 접근 타임스탬프 (예: "YYYY-MM-DD HH:MM:SS")
-COL_EMPLOYEE_ID = "직원ID"  # 표준화된 직원 ID 컬럼명
+COL_EMPLOYEE_ID = "교직원ID"  # 표준화된 직원 ID 컬럼명
 # login_checker용: 동일 사용자에 대해 여러 IP에서의 로그인을
 # 감지하기 위한 시간 창(시간 단위).
 LOGIN_IP_SWITCH_WINDOW_HOURS = 1
