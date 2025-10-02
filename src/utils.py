@@ -8,6 +8,7 @@ import os
 import zipfile
 from datetime import datetime
 
+import holidays
 import openpyxl
 import pandas as pd
 from dateutil.relativedelta import relativedelta
@@ -174,6 +175,60 @@ def zip_files_by_prefix(target_dir: str, prefix_list: list[str]):
                 zipf.write(os.path.join(target_dir, filename), arcname=filename)
 
         print_zip_result(zip_name, len(matched))
+
+
+def filter_by_time_conditions(
+    df: pd.DataFrame,
+    time_col: str,
+    employee_id_col: str,
+    check_off_hours: bool,
+    check_holidays_weekends: bool,
+    off_hours_start: int,
+    off_hours_end: int,
+) -> pd.DataFrame:
+    """
+    시간 조건(업무 시간 외, 공휴일/주말)에 따라 데이터프레임을 필터링합니다.
+
+    매개변수:
+        df (pd.DataFrame): 필터링할 데이터프레임.
+        time_col (str): 타임스탬프 정보를 포함하는 컬럼 이름.
+        employee_id_col (str): 직원 ID를 포함하는 컬럼 이름.
+        check_off_hours (bool): 업무 시간 외 검사를 활성화할지 여부.
+        check_holidays_weekends (bool): 공휴일 및 주말 검사를 활성화할지 여부.
+        off_hours_start (int): 업무 시간 외 시작 시간.
+        off_hours_end (int): 업무 시간 외 종료 시간.
+
+    반환 값:
+        pd.DataFrame: 지정된 시간 조건을 충족하는 필터링된 데이터프레임.
+    """
+    if df is None:
+        raise ValueError("Input DataFrame cannot be None.")
+
+    df_copy = df.copy()
+    # 이 함수를 호출하기 전에 datetime으로 변환하는 것이 더 효율적일 수 있지만,
+    # 각 검사기에서 독립적으로 사용될 수 있도록 여기서 변환을 수행합니다.
+    if not pd.api.types.is_datetime64_any_dtype(df_copy[time_col]):
+        df_copy[time_col] = pd.to_datetime(df_copy[time_col])
+
+    final_mask = pd.Series(False, index=df.index)
+
+    if check_off_hours:
+        hour = df_copy[time_col].dt.hour
+        is_off_hour = (hour < off_hours_end) | (hour >= off_hours_start)
+        final_mask |= is_off_hour
+
+    if check_holidays_weekends:
+        years = df_copy[time_col].dt.year.unique()
+        kr_holidays = holidays.KR(years=years)  # type: ignore [attr-defined]
+        weekday = df_copy[time_col].dt.weekday
+        date_only = df_copy[time_col].dt.date
+
+        is_weekend = weekday >= 5  # Monday is 0, Sunday is 6
+        is_holiday = date_only.isin(kr_holidays)
+        final_mask |= is_weekend
+        final_mask |= is_holiday
+
+    return df_copy[final_mask].sort_values([employee_id_col, time_col])
 
 
 def run_and_save_check(

@@ -14,11 +14,14 @@ import os
 from datetime import datetime
 from typing import cast
 
-import holidays
 import pandas as pd
 
 from display import print_checker_header
-from utils import find_and_prepare_excel_file, run_and_save_check
+from utils import (
+    filter_by_time_conditions,
+    find_and_prepare_excel_file,
+    run_and_save_check,
+)
 
 # download_reason_checker.py 상수
 PERSONAL_INFO_DOWNLOAD_REASON_PREFIX = "개인정보 다운로드 사유 조회_"
@@ -91,6 +94,10 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str) -> int:
     if df is None:
         return 0
 
+    # '접속일시' 컬럼을 datetime 객체로 변환
+    if COL_ACCESS_TIME in df.columns:
+        df[COL_ACCESS_TIME] = pd.to_datetime(df[COL_ACCESS_TIME])
+
     checks_to_run = [
         {
             "function": _check_download_sayu,
@@ -108,7 +115,15 @@ def sayu_checker(download_dir: str, save_dir: str, prev_month: str) -> int:
             "description": f"1시간 내 {DOWNLOAD_FREQUENCY_THRESHOLD}건 이상 다운로드",
         },
         {
-            "function": _filter_off_hour_and_holiday,
+            "function": lambda df: filter_by_time_conditions(
+                df,
+                time_col=COL_ACCESS_TIME,
+                employee_id_col=COL_EMPLOYEE_ID,
+                check_off_hours=True,
+                check_holidays_weekends=True,
+                off_hours_start=DOWNLOAD_OFF_HOURS_START,
+                off_hours_end=DOWNLOAD_OFF_HOURS_END,
+            ),
             "suffix": DOWNLOAD_REASON_OFF_HOURS_SUFFIX,
             "description": "업무 시간 외/휴일 다운로드",
         },
@@ -228,7 +243,6 @@ def _filter_high_freq_download(df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError("Input DataFrame cannot be None.")
 
     df_copy = df.copy()
-    df_copy[COL_ACCESS_TIME] = pd.to_datetime(df_copy[COL_ACCESS_TIME])
 
     flagged_indices = (
         set()
@@ -263,45 +277,3 @@ def _filter_high_freq_download(df: pd.DataFrame) -> pd.DataFrame:
         return result_df.sort_values([COL_EMPLOYEE_ID, COL_ACCESS_TIME])
     else:
         return pd.DataFrame(columns=df.columns)  # 동일한 열을 가진 빈 DataFrame 반환
-
-
-def _filter_off_hour_and_holiday(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    표준 업무 시간 외 또는 대한민국 공휴일/주말에 발생한 다운로드 기록을 필터링합니다.
-    업무 시간 외는 `DOWNLOAD_OFF_HOURS_START` 및 `DOWNLOAD_OFF_HOURS_END`로 정의됩니다.
-
-    매개변수:
-        df (pd.DataFrame): 다운로드 기록을 포함하는 DataFrame입니다. 예상 열:
-                           `COL_ACCESS_TIME`(접근 타임스탬프),
-                           `COL_EMPLOYEE_ID`(직원 ID).
-
-    반환 값:
-        pd.DataFrame: 업무 시간 외 또는 공휴일/주말의 다운로드 기록을 포함하며,
-                      직원 ID와 접근 시간으로 정렬된 DataFrame입니다.
-
-    예외:
-        ValueError: 입력 DataFrame `df`가 None인 경우.
-    """
-    if df is None:
-        raise ValueError("Input DataFrame cannot be None.")
-
-    df_copy = df.copy()
-    df_copy[COL_ACCESS_TIME] = pd.to_datetime(df_copy[COL_ACCESS_TIME])
-
-    # 해당 연도에 대한 대한민국 공휴일을 초기화합니다.
-    years = df_copy[COL_ACCESS_TIME].dt.year.unique()
-    kr_holidays = holidays.KR(years=years)  # type: ignore [attr-defined]
-
-    # 검사를 위한 시간적 특징을 추출합니다.
-    weekday = df_copy[COL_ACCESS_TIME].dt.weekday
-    hour = df_copy[COL_ACCESS_TIME].dt.hour
-    date_only = df_copy[COL_ACCESS_TIME].dt.date  # 공휴일 확인용
-
-    # 업무 시간 외, 주말 및 공휴일 조건을 정의합니다.
-    is_off_hour = (hour < DOWNLOAD_OFF_HOURS_END) | (hour >= DOWNLOAD_OFF_HOURS_START)
-    is_weekend = weekday >= 5  # 월요일은 0이고 일요일은 6입니다; 토요일=5, 일요일=6.
-    is_holiday = date_only.isin(kr_holidays)
-
-    # 조건 결합: 업무 시간 외 또는 주말 또는 공휴일인 모든 기록.
-    mask = is_off_hour | is_weekend | is_holiday
-    return df_copy[mask].sort_values([COL_EMPLOYEE_ID, COL_ACCESS_TIME])

@@ -12,11 +12,14 @@
 import os
 from datetime import datetime
 
-import holidays
 import pandas as pd
 
 from display import print_checker_header
-from utils import find_and_prepare_excel_file, run_and_save_check
+from utils import (
+    filter_by_time_conditions,
+    find_and_prepare_excel_file,
+    run_and_save_check,
+)
 
 # Constants for login_checker.py
 LOGIN_LOG_FILE_PREFIX = "사용자접속내역_Login내역_"  # 사용자 로그인 기록 파일의 접두사
@@ -86,6 +89,10 @@ def login_checker(download_dir: str, save_dir: str, prev_month: str) -> int:
             f"실제 컬럼: {df.columns[expected_ip_col_index]}"
         )
 
+    # '접속일시' 컬럼을 datetime 객체로 변환
+    if COL_ACCESS_TIME in df.columns:
+        df[COL_ACCESS_TIME] = pd.to_datetime(df[COL_ACCESS_TIME])
+
     checks_to_run = [
         {
             "function": _filter_ip_switch,
@@ -96,12 +103,28 @@ def login_checker(download_dir: str, save_dir: str, prev_month: str) -> int:
             ),
         },
         {
-            "function": _filter_off_hours,
+            "function": lambda df: filter_by_time_conditions(
+                df,
+                time_col=COL_ACCESS_TIME,
+                employee_id_col=COL_EMPLOYEE_ID_LOGIN,
+                check_off_hours=True,
+                check_holidays_weekends=False,
+                off_hours_start=LOGIN_OFF_HOURS_START,
+                off_hours_end=LOGIN_OFF_HOURS_END,
+            ),
             "suffix": LOGIN_REPORT_OFF_HOURS_SUFFIX,
             "description": "업무 시간 외 로그인",
         },
         {
-            "function": _filter_holiday_and_weekend,
+            "function": lambda df: filter_by_time_conditions(
+                df,
+                time_col=COL_ACCESS_TIME,
+                employee_id_col=COL_EMPLOYEE_ID_LOGIN,
+                check_off_hours=False,
+                check_holidays_weekends=True,
+                off_hours_start=0,  # Not used
+                off_hours_end=0,  # Not used
+            ),
             "suffix": LOGIN_REPORT_HOLIDAY_SUFFIX,
             "description": "휴일/주말 로그인",
         },
@@ -143,7 +166,6 @@ def _filter_ip_switch(df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError("Input DataFrame cannot be None.")
 
     df_copy = df.copy()
-    df_copy[COL_ACCESS_TIME] = pd.to_datetime(df_copy[COL_ACCESS_TIME])
 
     flagged_indices = (
         set()
@@ -180,70 +202,3 @@ def _filter_ip_switch(df: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame(
             columns=df.columns
         )  # 일치하는 항목이 없으면 동일한 열을 가진 빈 DataFrame을 반환합니다.
-
-
-def _filter_off_hours(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    표준 업무 시간 외에 발생한 로그인 기록을 필터링합니다.
-    업무 시간 외는 `LOGIN_OFF_HOURS_START` 및 `LOGIN_OFF_HOURS_END`로 정의됩니다.
-
-    매개변수:
-        df (pd.DataFrame): 로그인 기록을 포함하는 DataFrame입니다. 예상 열:
-                           `COL_ACCESS_TIME` 및 `COL_EMPLOYEE_ID_LOGIN`.
-
-    반환 값:
-        pd.DataFrame: 업무 시간 외에 발생한 로그인 기록을 포함하며,
-                      직원 ID와 접근 시간으로 정렬된 DataFrame입니다.
-
-    예외:
-        ValueError: 입력 DataFrame `df`가 None인 경우.
-    """
-    if df is None:
-        raise ValueError("Input DataFrame cannot be None.")
-
-    df_copy = df.copy()
-    df_copy[COL_ACCESS_TIME] = pd.to_datetime(df_copy[COL_ACCESS_TIME])
-
-    # 접근 시간에서 시간을 추출합니다.
-    hours = df_copy[COL_ACCESS_TIME].dt.hour
-
-    # 오전 업무 시간 외 종료 이전의 기록에 대한 마스크를 생성합니다.
-    # 또는 저녁 업무 시간 외 시작 이후의 기록에 대한 마스크를 생성합니다.
-    mask = (hours < LOGIN_OFF_HOURS_END) | (hours >= LOGIN_OFF_HOURS_START)
-    return df_copy[mask].sort_values([COL_EMPLOYEE_ID_LOGIN, COL_ACCESS_TIME])
-
-
-def _filter_holiday_and_weekend(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    대한민국 공휴일 또는 주말(토요일, 일요일)에 발생한 로그인 기록을 필터링합니다.
-
-    매개변수:
-        df (pd.DataFrame): 로그인 기록을 포함하는 DataFrame입니다. 예상 열:
-                           `COL_ACCESS_TIME` 및 `COL_EMPLOYEE_ID_LOGIN`.
-
-    반환 값:
-        pd.DataFrame: 공휴일 또는 주말에 발생한 로그인 기록을 포함하며,
-                      직원 ID와 접근 시간으로 정렬된 DataFrame입니다.
-
-    예외:
-        ValueError: 입력 DataFrame `df`가 None인 경우.
-    """
-    if df is None:
-        raise ValueError("Input DataFrame cannot be None.")
-
-    df_copy = df.copy()
-    df_copy[COL_ACCESS_TIME] = pd.to_datetime(df_copy[COL_ACCESS_TIME])
-
-    # 접근 시간에서 고유한 연도를 가져와 holidays 객체를 올바르게 초기화합니다.
-    years = df_copy[COL_ACCESS_TIME].dt.year.unique()
-    # 해당 연도에 대한 대한민국 공휴일을 초기화합니다.
-    # type: ignore # holidays.KR은 유효합니다.
-    kr_holidays = holidays.KR(years=years)  # type: ignore [attr-defined]
-
-    # 로그인 날짜가 주말인지 확인합니다 (토요일=5, 일요일=6).
-    is_weekend = df_copy[COL_ACCESS_TIME].dt.weekday >= 5
-    # 로그인 날짜가 공휴일인지 확인합니다.
-    is_holiday = df_copy[COL_ACCESS_TIME].dt.date.isin(kr_holidays)
-
-    mask = is_weekend | is_holiday
-    return df_copy[mask].sort_values([COL_EMPLOYEE_ID_LOGIN, COL_ACCESS_TIME])
